@@ -51,7 +51,7 @@ def read(filename, inMA):
 			# sin関数でダミーデータ作成
 			data = []
 			delta = math.pi / 100.0
-			for i in range(300000):
+			for i in range(3000):
 				data.append(math.sin(i * delta) + random.uniform(-0.05, 0.05))
 			return np.asarray(data, dtype=np.float32)
 		elif s.trainDataDummy == "sweep":
@@ -59,7 +59,7 @@ def read(filename, inMA):
 			data = []
 			delta = math.pi / 100.0
 			ddelta = delta / 1000.0
-			for i in range(300000):
+			for i in range(3000):
 				data.append(math.sin(i * delta) + random.uniform(-0.05, 0.05))
 				delta += ddelta
 			return np.asarray(data, dtype=np.float32)

@@ -43,6 +43,11 @@ def train():
 
 	print('Train mode')
 
+	# すでに目標エポック到達しているなら終了
+	if s.epoch <= s.curEpoch:
+		print("It have already reached the specified epoch")
+		return
+
 	# 学習ループ初期化
 	print("Loading data from  " + s.trainDataFile)
 	trainData = candle.read(s.trainDataFile, s.inMA)
@@ -240,5 +245,10 @@ elif s.mode == "server":
 	sv = server.Server()
 	sv.launch()
 	input()
+elif s.mode == "testhr":
+	print('Hit rate test mode')
+	print("Loading data from  " + s.trainDataFile)
+	data = candle.read(s.trainDataFile, s.inMA)
+	s.testhr(data, 0)
 else:
 	print("Unknown mode " + mode)

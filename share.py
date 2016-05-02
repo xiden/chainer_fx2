@@ -210,6 +210,107 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 	return math.exp(float(accumLoss) / (bpropLen - bpropHeadLossCut))
 
 #@jit
+def testhr(dataset, index):
+	"""指定データを現在のニューラルネットワークを使用し予測値部分の的中率を計測する"""
+
+	# モデルに影響を与えないようにコピーする
+	evaluator = dnn.model.copy()  # to use different state
+	evaluator.reset_state()  # initialize state
+	evaluator.train = False  # dropout does nothing
+
+	dataset = dataset[index:]
+	testPos = 0
+	testStart = bpropLen * bpropStep
+	testEnd = dataset.shape[0] - minEvalLen
+	testLen = (testEnd - testStart) // bpropStep + 1
+	count = 0
+	hitcount = 0
+	lastT = 0
+	lastY = 0
+
+	if grEnable:
+		tvals = np.zeros(testLen, dtype=np.float32)
+		yvals = np.zeros(testLen, dtype=np.float32)
+		dtvals = np.zeros(testLen, dtype=np.float32)
+		dyvals = np.zeros(testLen, dtype=np.float32)
+		devals = np.zeros(testLen, dtype=np.float32)
+		gi = 0
+
+		gxIn = np.arange(0, dataset.shape[0], 1)
+		gxOut = np.arange(testStart, testStart + testLen * bpropStep, bpropStep)
+		gxTeachDelta = gxOut
+		gxOutDelta = gxOut
+		glIn.set_xdata(gxIn)
+		glTeach.set_xdata(gxOut)
+		glOut.set_xdata(gxOut)
+		glTeachDelta.set_xdata(gxOut)
+		glOutDelta.set_xdata(gxOut)
+		glRet.set_xdata(gxOut)
+		subPlot1.set_xlim(0, dataset.shape[0])
+		subPlot2.set_xlim([0, dataset.shape[0]])
+		subPlot3.set_xlim([0, dataset.shape[0]])
+		subPlot1.set_ylim(npMaxMin(dataset))
+
+	while testPos <= testEnd:
+		# 学習データ取得
+		x, t = getTrainData(dataset, testPos)
+		x = chainer.Variable(x, volatile='on')
+
+		# ニューラルネットを通す
+		y = evaluator(x)
+
+		if testStart <= testPos:
+			count += 1
+			dt = float(t - lastT)
+			dy = float(y.data[0][0] - lastY.data[0][0])
+			if 0.0 < dt * dy:
+				hitcount += 1
+			if count % 100 == 0:
+				print(testPos, ": ", 100.0 * hitcount / count, "%")
+			if grEnable:
+				tvals[gi] = float(t)
+				yvals[gi] = float(y.data[0][0])
+				dtvals[gi] = dt
+				dyvals[gi] = dy
+				devals[gi] = dt - dy
+				gi += 1
+
+				if (count % 1000 == 0 or testEnd < testPos + bpropStep):
+					# グラフにデータを描画する
+					plt.title("testhr: " + trainDataFile) # グラフタイトル
+
+					#if testEnd < testPos + bpropStep:
+					#	tvalsSpan = tvals.ptp()
+					#	tvalsMin = tvals.min()
+					#	yvalsSpan = yvals.ptp()
+					#	yvalsMin = yvals.min()
+					#	yvalsScale = tvalsSpan / yvalsSpan if yvalsSpan != 0.0 else 0.0
+					#	yvals *= yvalsScale
+					#	yvals += tvalsMin - yvalsScale * yvalsMin
+
+					glIn.set_ydata(dataset)
+					glTeach.set_ydata(tvals)
+					glOut.set_ydata(yvals)
+					glTeachDelta.set_ydata(dtvals)
+					glOutDelta.set_ydata(dyvals)
+					glRet.set_ydata(devals)
+
+					subPlot2.set_ylim(npMaxMin([tvals[:gi], yvals[:gi]]))
+					subPlot3.set_ylim(npMaxMin([dtvals[:gi], dyvals[:gi]]))
+					plt.draw()
+					plt.pause(0.001)
+
+		lastT = t
+		lastY = y
+		testPos += bpropStep
+
+	print("result: ", 100.0 * hitcount / count, "%")
+
+	if grEnable:
+		plt.ioff() # 対話モードOFF
+		plt.show()
+
+#@jit
 def prediction():
 	"""現在のニューラルネットワークで未来を予測"""
 
@@ -446,13 +547,17 @@ if grEnable:
 	if mode == "server":
 		gxIn = np.arange(0, minPredLen, 1)
 		gyIn = np.zeros(minPredLen)
-	else:
+	elif mode == "train" or mode == "test":
 		minEvalLen
 		for i in range(bpropLen):
 			subPlot1.axvline(x=i * bpropStep + frameSize, color='black')
 		subPlot1.axvline(x=minPredLen, color='blue')
 		gxIn = np.arange(0, minEvalLen, 1)
 		gyIn = np.zeros(minEvalLen)
+	elif mode == "testhr":
+		gxIn = np.arange(0, 2, 1)
+		gyIn = np.zeros(2)
+
 	gxOut = np.arange(0, outLen * bpropStep, bpropStep)
 	gyOut = np.zeros(outLen)
 	gxTeachDelta = np.arange(bpropStep, outLen * bpropStep, bpropStep)
@@ -467,7 +572,8 @@ if grEnable:
 	glOut, = subPlot2.plot(gxOut, gyOut, label="out")
 	glTeachDelta, = subPlot3.plot(gxTeachDelta, gyTeachDelta, label="trg")
 	glOutDelta, = subPlot3.plot(gxOutDelta, gyOutDelta, label="out", color='#5555ff')
-	glOutDelta2, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="out", color='#ff55ff')
+	if mode != "testhr":
+		glOutDelta2, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="out", color='#ff55ff')
 	glRet, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="outave", color='#ff0000')
 
 	#subPlot1.legend(loc='lower right') # 凡例表示
