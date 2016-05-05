@@ -111,6 +111,39 @@ class NLNLNLNLN(chainer.Chain):
 		y = self.l9(F.dropout(h8, train=self.train))
 		return y
 
+class NNNLLLNNN(chainer.Chain):
+	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.LSTM(n_midunits, n_midunits),
+			l5=L.LSTM(n_midunits, n_midunits),
+			l6=L.LSTM(n_midunits, n_midunits),
+			l7=L.Linear(n_midunits, n_midunits),
+			l8=L.Linear(n_midunits, n_midunits),
+			l9=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		self.l4.reset_state()
+		self.l5.reset_state()
+		self.l6.reset_state()
+
+	def __call__(self, x):
+		h1 = self.l1(x)
+		h2 = self.l2(F.dropout(h1, train=self.train))
+		h3 = self.l3(F.dropout(h2, train=self.train))
+		h4 = self.l4(F.dropout(h3, train=self.train))
+		h5 = self.l5(F.dropout(h4, train=self.train))
+		h6 = self.l6(F.dropout(h5, train=self.train))
+		h7 = self.l7(F.dropout(h6, train=self.train))
+		h8 = self.l8(F.dropout(h7, train=self.train))
+		y = self.l9(F.dropout(h8, train=self.train))
+		return y
+
 class NNLLLLNN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -143,6 +176,34 @@ class NNLLLLNN(chainer.Chain):
 		y = self.l8(F.dropout(h7, train=self.train))
 		return y
 
+class NNLLLNN(chainer.Chain):
+	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.LSTM(n_midunits, n_midunits),
+			l4=L.LSTM(n_midunits, n_midunits),
+			l5=L.LSTM(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_midunits),
+			l7=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		self.l3.reset_state()
+		self.l4.reset_state()
+		self.l5.reset_state()
+
+	def __call__(self, x):
+		h1 = self.l1(x)
+		h2 = self.l2(F.dropout(h1, train=self.train))
+		h3 = self.l3(F.dropout(h2, train=self.train))
+		h4 = self.l4(F.dropout(h3, train=self.train))
+		h5 = self.l5(F.dropout(h4, train=self.train))
+		h6 = self.l6(F.dropout(h5, train=self.train))
+		y = self.l7(F.dropout(h6, train=self.train))
+		return y
 
 class NLLLLN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):

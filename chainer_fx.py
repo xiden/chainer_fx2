@@ -250,5 +250,7 @@ elif s.mode == "testhr":
 	print("Loading data from  " + s.trainDataFile)
 	data = candle.read(s.trainDataFile, s.inMA)
 	s.testhr(data, 0)
+elif s.mode == "testhr_g":
+	s.testhr_g()
 else:
 	print("Unknown mode " + mode)

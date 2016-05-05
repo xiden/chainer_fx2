@@ -6,6 +6,7 @@ import math
 import sys
 import time
 import csv
+import codecs
 from numba import jit
 import random
 import numpy as np
@@ -21,6 +22,7 @@ import net
 import candle
 import win32con
 import os.path as path
+from pathlib import Path
 import threading
 import ini
 
@@ -140,12 +142,14 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 
 	if grEnable:
 		xvals = dataset[index : index + minEvalLen]
+		ivals = np.zeros(outLen, dtype=np.float32)
 		tvals = np.zeros(outLen, dtype=np.float32)
 		yvals = np.zeros(outLen, dtype=np.float32)
 
 	for i in range(bpropLen):
 		# 学習データ取得
 		x, t = getTrainData(dataset, index + i * bpropStep)
+		ival = x[0][-1]
 		x = chainer.Variable(x, volatile='on')
 		t = chainer.Variable(t, volatile='on')
 
@@ -155,6 +159,7 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 			accumLoss += loss.data
 
 		if grEnable and outHeadCut <= i:
+			ivals[i - outHeadCut] = ival
 			tvals[i - outHeadCut] = t.data[0][0]
 			yvals[i - outHeadCut] = y.data[0][0]
 
@@ -185,10 +190,8 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 
 		# グラフにデータを描画する
 		plt.title(trainDataFile + " : " + str(index) + " : " + str(fxAveYenK)) # グラフタイトル
-		glIn.set_xdata(gxIn)
-		glTeach.set_xdata(gxOut)
-		glOut.set_xdata(gxOut)
 		glIn.set_ydata(xvals)
+		glInLast.set_ydata(ivals)
 		glTeach.set_ydata(tvals)
 		glOut.set_ydata(yvals)
 		glTeachDelta.set_ydata(dtvals)
@@ -208,6 +211,9 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 		plt.pause(0.001)
 
 	return math.exp(float(accumLoss) / (bpropLen - bpropHeadLossCut))
+
+def getTestHrFileBase():
+	return testFileName + "_" + trainDataFile + "_testhr_"
 
 #@jit
 def testhr(dataset, index):
@@ -230,6 +236,7 @@ def testhr(dataset, index):
 
 	if grEnable:
 		tvals = np.zeros(testLen, dtype=np.float32)
+		ivals = np.zeros(testLen, dtype=np.float32)
 		yvals = np.zeros(testLen, dtype=np.float32)
 		dtvals = np.zeros(testLen, dtype=np.float32)
 		dyvals = np.zeros(testLen, dtype=np.float32)
@@ -241,6 +248,7 @@ def testhr(dataset, index):
 		gxTeachDelta = gxOut
 		gxOutDelta = gxOut
 		glIn.set_xdata(gxIn)
+		glInLast.set_xdata(gxOut)
 		glTeach.set_xdata(gxOut)
 		glOut.set_xdata(gxOut)
 		glTeachDelta.set_xdata(gxOut)
@@ -254,6 +262,7 @@ def testhr(dataset, index):
 	while testPos <= testEnd:
 		# 学習データ取得
 		x, t = getTrainData(dataset, testPos)
+		inLast = float(x[0][-1])
 		x = chainer.Variable(x, volatile='on')
 
 		# ニューラルネットを通す
@@ -269,6 +278,7 @@ def testhr(dataset, index):
 				print(testPos, ": ", 100.0 * hitcount / count, "%")
 			if grEnable:
 				tvals[gi] = float(t)
+				ivals[gi] = inLast
 				yvals[gi] = float(y.data[0][0])
 				dtvals[gi] = dt
 				dyvals[gi] = dy
@@ -276,10 +286,21 @@ def testhr(dataset, index):
 				gi += 1
 
 				if (count % 1000 == 0 or testEnd < testPos + bpropStep):
+					# 指定間隔または最終データ完了後に
 					# グラフにデータを描画する
 					plt.title("testhr: " + trainDataFile) # グラフタイトル
 
-					#if testEnd < testPos + bpropStep:
+					if testEnd < testPos + bpropStep:
+						# 最終データ完了後なら
+						# 円単位に直す
+						ivals = candle.decodeArray(ivals)
+						tvals = candle.decodeArray(tvals)
+						yvals = candle.decodeArray(yvals)
+						# CSVファイルに吐き出す
+						with codecs.open(getTestHrFileBase() + str(curEpoch) + ".csv", 'w', "shift_jis") as f:
+							writer = csv.writer(f)
+							for i in range(ivals.shape[0]):
+								writer.writerow([ivals[i], tvals[i], yvals[i]])
 					#	tvalsSpan = tvals.ptp()
 					#	tvalsMin = tvals.min()
 					#	yvalsSpan = yvals.ptp()
@@ -289,6 +310,7 @@ def testhr(dataset, index):
 					#	yvals += tvalsMin - yvalsScale * yvalsMin
 
 					glIn.set_ydata(dataset)
+					glInLast.set_ydata(ivals)
 					glTeach.set_ydata(tvals)
 					glOut.set_ydata(yvals)
 					glTeachDelta.set_ydata(dtvals)
@@ -304,11 +326,78 @@ def testhr(dataset, index):
 		lastY = y
 		testPos += bpropStep
 
-	print("result: ", 100.0 * hitcount / count, "%")
+	result = 100.0 * hitcount / count
+	print("result: ", result, "%")
+	orgSection = configIni.section
+	configIni.section = getTestHrFileBase() + str(curEpoch)
+	configIni.set("epoch" + str(curEpoch), result)
+	configIni.section = orgSection
 
 	if grEnable:
 		plt.ioff() # 対話モードOFF
 		plt.show()
+
+def readTestHrGraphBase(filename):
+	"""指定された的中率テスト結果CSVを読み込む
+	Args:
+		filename: 読み込むCSVファイル名.
+	"""
+	with open(filename, "r") as f:
+		# 円データをそのまま使用する
+		dr = csv.reader(f)
+		idata = []
+		tdata = []
+		ydata = []
+		for row in dr:
+			idata.append(float(row[0]))
+			tdata.append(float(row[1]))
+			ydata.append(float(row[2]))
+	return np.asarray(idata, dtype=np.float32), np.asarray(tdata, dtype=np.float32), np.asarray(ydata, dtype=np.float32)
+
+def readTestHrGraphY(filename):
+	"""指定された的中率テスト結果CSV内の計算出力だけを読み込む
+	Args:
+		filename: 読み込むCSVファイル名.
+	"""
+	with open(filename, "r") as f:
+		# 円データをそのまま使用する
+		dr = csv.reader(f)
+		ydata = []
+		for row in dr:
+			ydata.append(float(row[2]))
+	return np.asarray(ydata, dtype=np.float32)
+
+def testhr_g():
+	baseName = getTestHrFileBase()
+	p = Path(".")
+	l = list(p.glob(baseName + "*.csv"))
+	i = len(baseName)
+	epochs = []
+	for pl in l:
+		name, ext = path.splitext(pl.name)
+		epochs.append(int(name[i:]))
+
+	epochs.sort()
+	count = 1
+	for epoch in epochs:
+		csvFile = baseName + str(epoch) + ".csv"
+
+		if count == 1:
+			ivals, tvals, yvals = readTestHrGraphBase(csvFile)
+			x = np.arange(0, ivals.shape[0], 1)
+			plt.plot(x, ivals, label="x")
+			plt.plot(x, tvals, label="t")
+			plt.plot(x, yvals, label="y " + str(epoch))
+		else:
+			plt.plot(x, readTestHrGraphY(csvFile), label="y " + str(epoch))
+
+		count += 1
+
+	plt.gcf().canvas.set_window_title(trainDataFile)
+	plt.legend(loc='lower left') # 凡例表示
+	plt.xlim(xmin=0, xmax=ivals.shape[0] - 1)
+	plt.show()
+
 
 #@jit
 def prediction():
@@ -516,7 +605,8 @@ modelLock = threading.Lock() # model を排他処理するためのロック
 # ネットタイプと設定ファイル名によりモデルデータファイル名修飾文字列作成
 # モデルファイル名に付与される
 batchName = "btch" + str(batchSize) + ("rnd" if batchRandom else "")
-testFileName = path.splitext(path.basename(args.iniFileName))[0] + "_" + str(netType) + "_" + optm + "_" + batchName + "_u" + str(numUnits) + "f" + str(frameSize) + "p" + str(predLen) + "b" + str(bpropLen) + "bs" + str(bpropStep)
+predName = ("pa" if predAve else "p") + str(predLen)
+testFileName = path.splitext(path.basename(args.iniFileName))[0] + "_" + str(netType) + "_" + optm + "_" + batchName + "_u" + str(numUnits) + "f" + str(frameSize) + predName + "b" + str(bpropLen) + "bs" + str(bpropStep)
 if trainDataDummy:
 	testFileName += "_" + trainDataDummy
 modelFile = testFileName + ".model"
@@ -524,91 +614,94 @@ stateFile = testFileName + ".state"
 testFileIni = ini.file(testFileName + ".ini", "DEFAULT")
 curEpoch = testFileIni.getInt("curEpoch", 0) # 現在の実施済みエポック数取得
 
-# 未来予測データの合成係数初期化
-initAveYenKs(fxAveYenK)
 
-# グラフ描画用の初期化
-if grEnable:
-	plt.ion() # 対話モードON
-	fig = plt.figure() # 何も描画されていない新しいウィンドウを描画
-	plt.xlabel("min") # x軸ラベル
-	plt.ylabel("yen") # y軸ラベル
-	plt.grid() # グリッド表示
-	plt.gcf().canvas.set_window_title(testFileName)
+if mode != "testhr_g":
+	# 未来予測データの合成係数初期化
+	initAveYenKs(fxAveYenK)
 
-	subPlot1 = fig.add_subplot(3, 1, 1)
-	subPlot2 = fig.add_subplot(3, 1, 2)
-	subPlot3 = fig.add_subplot(3, 1, 3)
+	# グラフ描画用の初期化
+	if grEnable:
+		plt.ion() # 対話モードON
+		fig = plt.figure() # 何も描画されていない新しいウィンドウを描画
+		plt.xlabel("min") # x軸ラベル
+		plt.ylabel("yen") # y軸ラベル
+		plt.grid() # グリッド表示
+		plt.gcf().canvas.set_window_title(testFileName)
+
+		subPlot1 = fig.add_subplot(3, 1, 1)
+		subPlot2 = fig.add_subplot(3, 1, 2)
+		subPlot3 = fig.add_subplot(3, 1, 3)
 
 
-	subPlot2.axvline(x=(outLen - 2) * bpropStep, color='black')
-	subPlot3.axhline(y=0, color='black')
+		subPlot2.axvline(x=(outLen - 2) * bpropStep, color='black')
+		subPlot3.axhline(y=0, color='black')
 
-	if mode == "server":
-		gxIn = np.arange(0, minPredLen, 1)
-		gyIn = np.zeros(minPredLen)
-	elif mode == "train" or mode == "test":
-		minEvalLen
-		for i in range(bpropLen):
-			subPlot1.axvline(x=i * bpropStep + frameSize, color='black')
-		subPlot1.axvline(x=minPredLen, color='blue')
-		gxIn = np.arange(0, minEvalLen, 1)
-		gyIn = np.zeros(minEvalLen)
-	elif mode == "testhr":
-		gxIn = np.arange(0, 2, 1)
-		gyIn = np.zeros(2)
+		if mode == "server":
+			gxIn = np.arange(0, minPredLen, 1)
+			gyIn = np.zeros(minPredLen)
+		elif mode == "train" or mode == "test":
+			minEvalLen
+			for i in range(bpropLen):
+				subPlot1.axvline(x=i * bpropStep + frameSize, color='black')
+			subPlot1.axvline(x=minPredLen, color='blue')
+			gxIn = np.arange(0, minEvalLen, 1)
+			gyIn = np.zeros(minEvalLen)
+		elif mode == "testhr":
+			gxIn = np.arange(0, 2, 1)
+			gyIn = np.zeros(2)
 
-	gxOut = np.arange(0, outLen * bpropStep, bpropStep)
-	gyOut = np.zeros(outLen)
-	gxTeachDelta = np.arange(bpropStep, outLen * bpropStep, bpropStep)
-	gyTeachDelta = np.zeros(outLen - 1)
-	gxOutDelta = np.arange((outLen - outDeltaLen) * bpropStep, outLen * bpropStep, bpropStep)
-	gyOutDelta = np.zeros(outDeltaLen)
-	gxOutDelta2 = np.arange((outLen - outDeltaLen + 1) * bpropStep, outLen * bpropStep, bpropStep)
-	gyOutDelta2 = np.zeros(outDeltaLen - 1)
+		gxOut = np.arange(0, outLen * bpropStep, bpropStep)
+		gyOut = np.zeros(outLen)
+		gxTeachDelta = np.arange(bpropStep, outLen * bpropStep, bpropStep)
+		gyTeachDelta = np.zeros(outLen - 1)
+		gxOutDelta = np.arange((outLen - outDeltaLen) * bpropStep, outLen * bpropStep, bpropStep)
+		gyOutDelta = np.zeros(outDeltaLen)
+		gxOutDelta2 = np.arange((outLen - outDeltaLen + 1) * bpropStep, outLen * bpropStep, bpropStep)
+		gyOutDelta2 = np.zeros(outDeltaLen - 1)
 
-	glIn, = subPlot1.plot(gxIn, gyIn, label="in")
-	glTeach, = subPlot2.plot(gxOut, gyOut, label="trg")
-	glOut, = subPlot2.plot(gxOut, gyOut, label="out")
-	glTeachDelta, = subPlot3.plot(gxTeachDelta, gyTeachDelta, label="trg")
-	glOutDelta, = subPlot3.plot(gxOutDelta, gyOutDelta, label="out", color='#5555ff')
-	if mode != "testhr":
-		glOutDelta2, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="out", color='#ff55ff')
-	glRet, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="outave", color='#ff0000')
+		glIn, = subPlot1.plot(gxIn, gyIn, label="in")
+		glInLast, = subPlot2.plot(gxOut, gyOut, label="in")
+		glTeach, = subPlot2.plot(gxOut, gyOut, label="trg")
+		glOut, = subPlot2.plot(gxOut, gyOut, label="out")
+		glTeachDelta, = subPlot3.plot(gxTeachDelta, gyTeachDelta, label="trg")
+		glOutDelta, = subPlot3.plot(gxOutDelta, gyOutDelta, label="out", color='#5555ff')
+		if mode != "testhr":
+			glOutDelta2, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="out", color='#ff55ff')
+		glRet, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="outave", color='#ff0000')
 
-	#subPlot1.legend(loc='lower right') # 凡例表示
-	#subPlot2.legend(loc='lower right') # 凡例表示
-	#subPlot3.legend(loc='lower right') # 凡例表示
+		#subPlot1.legend(loc='lower right') # 凡例表示
+		#subPlot2.legend(loc='lower right') # 凡例表示
+		#subPlot3.legend(loc='lower right') # 凡例表示
 
-# GPU使うならそれ用の数値処理ライブラリ取得
-xp = cuda.cupy if gpu >= 0 else np
+	# GPU使うならそれ用の数値処理ライブラリ取得
+	xp = cuda.cupy if gpu >= 0 else np
 
-# ネットワークモデルとオプティマイザ初期化
-dnn = DnnHelper()
+	# ネットワークモデルとオプティマイザ初期化
+	dnn = DnnHelper()
 
-# Prepare RNNLM model, defined in net.py
-netClassDef = getattr(net, netType)
-dnn.model = netClassDef(n_in, numUnits, n_out, gpu, True)
-if netInitParamRandom:
-	for param in dnn.model.params():
-		data = param.data
-		data[:] = np.random.uniform(-netInitParamRandom, netInitParamRandom, data.shape)
-if gpu >= 0:
-	cuda.get_device(gpu).use()
-	dnn.model.to_gpu()
+	# Prepare RNNLM model, defined in net.py
+	netClassDef = getattr(net, netType)
+	dnn.model = netClassDef(n_in, numUnits, n_out, gpu, True)
+	if netInitParamRandom:
+		for param in dnn.model.params():
+			data = param.data
+			data[:] = np.random.uniform(-netInitParamRandom, netInitParamRandom, data.shape)
+	if gpu >= 0:
+		cuda.get_device(gpu).use()
+		dnn.model.to_gpu()
 
-# Setup optimizer
-if optm == "Adam":
-	dnn.optimizer = optimizers.Adam(adamAlpha)
-elif optm == "AdaDelta":
-	dnn.optimizer = optimizers.AdaDelta(adaDeltaRho, adaDeltaEps)
-else:
-	print("Unknown optimizer: ", optm)
-	sys.exit()
-#dnn.optimizer = optimizers.MomentumSGD(lr=learningRrate, momentum=0.5)
-#dnn.optimizer = optimizers.SGD(lr=learningRrate)
-dnn.optimizer.setup(dnn.model)
-dnn.optimizer.add_hook(chainer.optimizer.GradientClipping(gradClip))
+	# Setup optimizer
+	if optm == "Adam":
+		dnn.optimizer = optimizers.Adam(adamAlpha)
+	elif optm == "AdaDelta":
+		dnn.optimizer = optimizers.AdaDelta(adaDeltaRho, adaDeltaEps)
+	else:
+		print("Unknown optimizer: ", optm)
+		sys.exit()
+	#dnn.optimizer = optimizers.MomentumSGD(lr=learningRrate, momentum=0.5)
+	#dnn.optimizer = optimizers.SGD(lr=learningRrate)
+	dnn.optimizer.setup(dnn.model)
+	dnn.optimizer.add_hook(chainer.optimizer.GradientClipping(gradClip))
 
-# モデルとオプティマイザをロード
-loadModelAndOptimizer()
+	# モデルとオプティマイザをロード
+	loadModelAndOptimizer()
