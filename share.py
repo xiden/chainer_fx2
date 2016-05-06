@@ -68,6 +68,20 @@ def saveModelAndOptimizer():
 		print('save the optimizer')
 		serializers.save_npz(stateFile, dnn.optimizer)
 
+def getBatchRangeAndIndices(wholeLen):
+	"""指定された長さの学習データ用のバッチ範囲とインデックスを取得する"""
+	batchRangeStart = 0
+	batchRangeEnd = wholeLen - minEvalLen
+	if batchRangeEnd < 0:
+		print("Data length not enough")
+		sys.exit()
+	batchRangeSize = batchRangeEnd - batchRangeStart
+	batchIndices = [0] * batchSize
+	for i in range(batchSize):
+		batchIndices[i] = batchRangeStart + i * batchRangeSize // batchSize
+
+	return batchRangeStart, batchRangeEnd, batchIndices
+
 def snapShotPredictionModel():
 	"""学習中のモデルからドル円未来予測用のモデルを作成する"""
 	global fxYenPredictionModel
@@ -328,10 +342,9 @@ def testhr(dataset, index):
 
 	result = 100.0 * hitcount / count
 	print("result: ", result, "%")
-	orgSection = configIni.section
-	configIni.section = getTestHrFileBase() + str(curEpoch)
-	configIni.set("epoch" + str(curEpoch), result)
-	configIni.section = orgSection
+
+	testFileIni = ini.file(testFileName + ".ini", getTestHrFileBase() + str(curEpoch))
+	testFileIni.set("hitRate" + str(curEpoch), result)
 
 	if grEnable:
 		plt.ioff() # 対話モードOFF

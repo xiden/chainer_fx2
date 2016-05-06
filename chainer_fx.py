@@ -53,17 +53,8 @@ def train():
 	trainData = candle.read(s.trainDataFile, s.inMA)
 	print("    length = {}".format(trainData.shape[0]))
 
-	wholeLen = trainData.shape[0]
-	batchRangeStart = 0
-	batchRangeEnd = wholeLen - s.minEvalLen
-	if batchRangeEnd < 0:
-		print("Data length not enough")
-		sys.exit()
-	batchIndices = [0] * s.batchSize
-	for i in range(s.batchSize):
-		batchIndices[i] = batchRangeStart + i * (batchRangeEnd - batchRangeStart) // s.batchSize
+	batchRangeStart, batchRangeEnd, batchIndices = s.getBatchRangeAndIndices(trainData.shape[0])
 	batchStart = 0
-	batchStep = (batchRangeEnd - batchRangeStart) // s.batchSize
 	batchOffsetInitial = batchRangeEnd - batchIndices[-1]
 	batchOffset = batchOffsetInitial
 	lastperp = -1.0
@@ -71,12 +62,17 @@ def train():
 	evalIndex = batchRangeStart
 	evalIndexMove = s.frameSize // 5
 	requestQuit = False
+	quitNow = False
 	lossMag = s.lossMag * s.outLen / (s.outLen - s.bpropHeadLossCut)
-	print('going to train {} iterations'.format(s.epoch))
+	itrCount = batchOffsetInitial * s.epoch
+	itr = 0
+	print('going to train {} iterations'.format(itrCount))
 
 	# 学習ループ
-	for i in six.moves.range(s.curEpoch, s.epoch):
-		if requestQuit:
+	startTime = time.time()
+	while(s.curEpoch < s.epoch):
+		# 終了要求状態で↓キー押されたら即座に終了
+		if quitNow:
 			break
 
 		# LSTMによる一連の学習
@@ -143,33 +139,52 @@ def train():
 				forceEval = True
 
 			# 評価処理
-			if (j == 0 and i % s.evalInterval == 0) or forceEval:
+			if (j == 0 and itr % s.evalInterval == 0) or forceEval:
 				print('evaluate')
 				now = time.time()
 				perp = s.evaluate(trainData, evalIndex, onlyAveDYVals)
 				print('epoch {} validation perplexity: {}'.format(s.curEpoch + 1, perp))
-				if 1 <= i and s.optm == "Adam":
+				if 1 <= itr and s.optm == "Adam":
 					print('learning rate =', s.dnn.optimizer.lr)
 
 			# 終了判定処理
-			if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD0) & 0x8000) != 0:
+			if (win32api.GetAsyncKeyState(win32con.VK_NUMLOCK) & 0x8000) != 0:
+				if not requestQuit:
+					print("Quit requested. It will stop next epoch.")
+					print("Press down arrow key to stop now.")
 				requestQuit = True
 				break
+			if requestQuit and (win32api.GetAsyncKeyState(win32con.VK_DOWN) & 0x8000) != 0:
+				quitNow = True
 
 		# ニューラルネットワーク更新
-		if not requestQuit:
+		if not quitNow:
 			accumLoss *= lossMag
 			s.dnn.update(accumLoss)
 
-			# バッチ位置の移動
-			batchOffset -= s.predLen
-			if batchOffset < 0:
+			# 時間計測
+			if itr % 10 == 0:
+				curTime = time.time()
+				print(10.0 / (curTime - startTime), "/s")
+				startTime = curTime
+
+			if batchOffset == 0:
+				# 今回バッチ位置が０だったら一周とする
 				batchOffset = batchOffsetInitial
-				print("一周した")
+				s.curEpoch += 1
+				print("Current epoch is", s.curEpoch)
 
-			s.curEpoch = i + 1
+				# 終了要求状態なら終了する
+				if requestQuit:
+					break
+			else:
+				# バッチ位置の移動
+				batchOffset -= s.bpropStep
+				# 移動し過ぎを抑制
+				if batchOffset < 0:
+					batchOffset = 0
 
-			sys.stdout.flush()
+		itr += 1
 
 	# INIファイルへ保存
 	if s.optm == "Adam":
@@ -185,9 +200,7 @@ def test():
 	print("Loading data from  " + s.trainDataFile)
 	train_data = candle.read(s.trainDataFile, s.inMA)
 
-	whole_len = train_data.shape[0]
-	batchRangeStart = 0
-	batchRangeEnd = whole_len - s.minEvalLen
+	batchRangeStart, batchRangeEnd, batchIndices = s.getBatchRangeAndIndices(trainData.shape[0])
 	evalIndex = batchRangeStart
 	evalIndexMove = s.frameSize // 5
 	lastEvalIndex = -1
