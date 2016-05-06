@@ -151,10 +151,9 @@ def train():
 			if (win32api.GetAsyncKeyState(win32con.VK_NUMLOCK) & 0x8000) != 0:
 				if not requestQuit:
 					print("Quit requested. It will stop next epoch.")
-					print("Press down arrow key to stop now.")
-				requestQuit = True
-				break
-			if requestQuit and (win32api.GetAsyncKeyState(win32con.VK_DOWN) & 0x8000) != 0:
+					print("Press pause key to stop now.")
+					requestQuit = True
+			if requestQuit and (win32api.GetAsyncKeyState(win32con.VK_PAUSE) & 0x8000) != 0:
 				quitNow = True
 
 		# ニューラルネットワーク更新
@@ -165,7 +164,7 @@ def train():
 			# 時間計測
 			if itr % 10 == 0:
 				curTime = time.time()
-				print(10.0 / (curTime - startTime), "/s")
+				print(10.0 / (curTime - startTime), "itr/s")
 				startTime = curTime
 
 			if batchOffset == 0:
