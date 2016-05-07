@@ -41,6 +41,9 @@ class NNLNLNLNLNN(chainer.Chain):
 		y = self.l11(F.dropout(h10, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NLNLNLNLNN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -77,6 +80,9 @@ class NLNLNLNLNN(chainer.Chain):
 		y = self.l10(F.dropout(h9, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NLNLNLNLN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -111,6 +117,9 @@ class NLNLNLNLN(chainer.Chain):
 		y = self.l9(F.dropout(h8, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NNNLLLNNN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -144,6 +153,9 @@ class NNNLLLNNN(chainer.Chain):
 		y = self.l9(F.dropout(h8, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NNLLLLNN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -176,6 +188,9 @@ class NNLLLLNN(chainer.Chain):
 		y = self.l8(F.dropout(h7, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NNLLLNN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -205,6 +220,9 @@ class NNLLLNN(chainer.Chain):
 		y = self.l7(F.dropout(h6, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NLLLLN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -233,6 +251,9 @@ class NLLLLN(chainer.Chain):
 		y = self.l6(F.dropout(h5, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NLLLN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -257,6 +278,9 @@ class NLLLN(chainer.Chain):
 		h4 = self.l4(F.dropout(h3, train=self.train))
 		y = self.l5(F.dropout(h4, train=self.train))
 		return y
+
+	def getModelKind(self):
+		return "lstm"
 
 class NNLLNN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
@@ -284,6 +308,9 @@ class NNLLNN(chainer.Chain):
 		y = self.l6(F.dropout(h5, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NNLNN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -307,6 +334,9 @@ class NNLNN(chainer.Chain):
 		y = self.l5(F.dropout(h4, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NLLN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -329,6 +359,9 @@ class NLLN(chainer.Chain):
 		y = self.l4(F.dropout(h3, train=self.train))
 		return y
 
+	def getModelKind(self):
+		return "lstm"
+
 class NLN(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
@@ -347,6 +380,9 @@ class NLN(chainer.Chain):
 		h2 = self.l2(F.dropout(h1, train=self.train))
 		y = self.l3(F.dropout(h2, train=self.train))
 		return y
+
+	def getModelKind(self):
+		return "lstm"
 
 class LLLL(chainer.Chain):
 	def __init__(self, n_in, n_units, n_out, gpu, train=True):
@@ -371,3 +407,6 @@ class LLLL(chainer.Chain):
 		h3 = self.l3(F.dropout(h2, train=self.train))
 		y = self.l4(F.dropout(h3, train=self.train))
 		return y
+
+	def getModelKind(self):
+		return "lstm"

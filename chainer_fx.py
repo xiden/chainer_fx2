@@ -64,12 +64,14 @@ def train():
 	requestQuit = False
 	quitNow = False
 	lossMag = s.lossMag * s.outLen / (s.outLen - s.bpropHeadLossCut)
-	itrCount = batchOffsetInitial * s.epoch
+	itrStart = batchOffsetInitial * s.curEpoch
+	itrEnd = batchOffsetInitial * s.epoch
+	itrCount = itrEnd - itrStart
 	itr = 0
-	print('going to train {} iterations'.format(itrCount))
+	print('going to train {} iterations'.format(itrEnd))
 
 	# 学習ループ
-	startTime = time.time()
+	startTime = prevTime = time.time()
 	while(s.curEpoch < s.epoch):
 		# 終了要求状態で↓キー押されたら即座に終了
 		if quitNow:
@@ -143,7 +145,7 @@ def train():
 				print('evaluate')
 				now = time.time()
 				perp = s.evaluate(trainData, evalIndex, onlyAveDYVals)
-				print('epoch {} validation perplexity: {}'.format(s.curEpoch + 1, perp))
+				print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
 				if 1 <= itr and s.optm == "Adam":
 					print('learning rate =', s.dnn.optimizer.lr)
 
@@ -161,11 +163,13 @@ def train():
 			accumLoss *= lossMag
 			s.dnn.update(accumLoss)
 
-			# 時間計測
+			# 時間計測＆残り時間表示
 			if itr % 10 == 0:
 				curTime = time.time()
-				print(10.0 / (curTime - startTime), "itr/s")
-				startTime = curTime
+				elpTime = curTime - startTime
+				endTime = elpTime * itrCount / itr if itr else 0.0
+				print("{0:.2f}itr/s : remain {1:.2f}s".format(10.0 / (curTime - prevTime), endTime - elpTime))
+				prevTime = curTime
 
 			if batchOffset == 0:
 				# 今回バッチ位置が０だったら一周とする

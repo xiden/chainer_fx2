@@ -26,7 +26,8 @@ from pathlib import Path
 import threading
 import ini
 
-class DnnHelper(object):
+class DnnLstm(object):
+	"""LSTM用のモデルとオプティマイザへルパクラス"""
 	model = None
 	optimizer = None
 
@@ -46,9 +47,28 @@ class DnnHelper(object):
 		loss.backward()
 		loss.unchain_backward()  # truncate
 		self.optimizer.update()
-		#self.model.zerograds()
-		#loss.backward()
-		#self.optimizer.update()
+
+class DnnClassifier(object):
+	"""クラス分類用のモデルとオプティマイザへルパクラス"""
+	model = None
+	optimizer = None
+
+	def __init__(self, model = None, optimizer = None):
+		self.model = model
+		self.optimizer = optimizer
+
+	def forward(self, x, t, calcLoss):
+		y = self.model(x)
+		if calcLoss:
+			return (y, F.softmax_cross_entropy(y, t))
+		else:
+			return (y, None)
+
+	def update(self, loss):
+		self.model.zerograds()
+		loss.backward()
+		self.optimizer.update()
+
 
 def loadModelAndOptimizer():
 	"""モデルとオプティマイザ読み込み"""
@@ -150,7 +170,7 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 	evaluator = dnn.model.copy()  # to use different state
 	evaluator.reset_state()  # initialize state
 	evaluator.train = False  # dropout does nothing
-	evdnn = DnnHelper(evaluator, None)
+	evdnn = DnnLstm(evaluator, None)
 
 	accumLoss = 0
 
@@ -690,7 +710,7 @@ if mode != "testhr_g":
 	xp = cuda.cupy if gpu >= 0 else np
 
 	# ネットワークモデルとオプティマイザ初期化
-	dnn = DnnHelper()
+	dnn = DnnLstm()
 
 	# Prepare RNNLM model, defined in net.py
 	netClassDef = getattr(net, netType)
