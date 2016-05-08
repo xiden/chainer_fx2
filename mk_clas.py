@@ -151,6 +151,7 @@ def getTrainData(dataset, i):
 
 	return s.xp.asarray([x], dtype=np.float32), s.xp.asarray([i], dtype=np.int32)
 
+@jit
 def trainBatch(dataset, itr):
 	"""ミニバッチで学習する"""
 
@@ -180,7 +181,7 @@ def trainBatch(dataset, itr):
 
 	return loss
 
-#@jit
+@jit
 def evaluate(dataset, index):
 	"""現在のニューラルネットワーク評価処理"""
 
@@ -221,7 +222,14 @@ def evaluate(dataset, index):
 
 	return math.exp(float(loss.data))
 
-#@jit
+def writeTestHrCsv(xvals, tvals, yvals):
+	"""テスト結果CSVファイルに書き込む"""
+	with codecs.open(f.getTestHrFileBase() + str(s.curEpoch) + ".csv", 'w', "shift_jis") as file:
+		writer = csv.writer(file)
+		for i in range(xvals.shape[0]):
+			writer.writerow([xvals[i], tvals[i], yvals[i]])
+
+@jit
 def testhr():
 	"""指定データを現在のニューラルネットワークを使用し予測値部分の的中率を計測する"""
 
@@ -264,7 +272,7 @@ def testhr():
 		xvals[i] = dataset[i + s.frameSize - 1]
 		tvals[i] = tval = int(t[0]) - clsNum
 		yvals[i] = yval = int(y.data.argmax(1)[0]) - clsNum
-		evals[i] = tval - yval
+		evals[i] = tval - yval if tval * yval < 0 else 0
 
 		count += 1
 		if tvals[i] == yvals[i]:
@@ -289,11 +297,7 @@ def testhr():
 				tvals += xvalsAverage
 				yvals += xvalsAverage
 				evals += xvalsAverage
-
-				with codecs.open(f.getTestHrFileBase() + str(s.curEpoch) + ".csv", 'w', "shift_jis") as file:
-					writer = csv.writer(file)
-					for i in range(testLen):
-						writer.writerow([xvals[i], tvals[i], yvals[i]])
+				writeTestHrCsv(xvals, tvals, yvals)
 
 			glIn.set_ydata(xvals)
 			glTeach.set_ydata(tvals)

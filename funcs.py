@@ -98,6 +98,7 @@ def readTestHrGraphY(filename):
 			ydata.append(float(row[2]))
 	return np.asarray(ydata, dtype=np.float32)
 
+@jit
 def testhr_g():
 	baseName = getTestHrFileBase()
 	p = Path(".")
@@ -134,6 +135,7 @@ def testhr_g():
 	plt.xlim(xmin=0, xmax=xvals.shape[0] - 1)
 	plt.show()
 
+@jit
 def trainFlowControl():
 	"""ユーザー入力による学習処理時の評価位置移動、終了要求などの共通制御処理"""
 
@@ -172,6 +174,7 @@ def trainFlowControl():
 	if s.requestQuit and (win32api.GetAsyncKeyState(win32con.VK_PAUSE) & 0x8000) != 0:
 		s.quitNow = True
 
+@jit
 def train():
 	"""学習モード処理"""
 
