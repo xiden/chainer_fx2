@@ -98,7 +98,6 @@ def readTestHrGraphY(filename):
 			ydata.append(float(row[2]))
 	return np.asarray(ydata, dtype=np.float32)
 
-@jit
 def testhr_g():
 	baseName = getTestHrFileBase()
 	p = Path(".")
