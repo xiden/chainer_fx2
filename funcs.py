@@ -114,9 +114,9 @@ def testhr_g():
 		csvFile = baseName + str(epoch) + ".csv"
 
 		if count == 1:
-			ivals, tvals, yvals = readTestHrGraphBase(csvFile)
-			x = np.arange(0, ivals.shape[0], 1)
-			plt.plot(x, ivals, label="x")
+			xvals, tvals, yvals = readTestHrGraphBase(csvFile)
+			x = np.arange(0, xvals.shape[0], 1)
+			plt.plot(x, xvals, label="x")
 			plt.plot(x, tvals, label="t")
 			plt.plot(x, yvals, label="y " + str(epoch))
 		else:
@@ -124,9 +124,14 @@ def testhr_g():
 
 		count += 1
 
+	# クラス分類版のデータなら入力値の平均に水平線を引く
+	if s.model.getModelKind() == "clas":
+		xvalsAverage = np.average(xvals)
+		plt.axhline(y=xvalsAverage, color='black')
+
 	plt.gcf().canvas.set_window_title(s.trainDataFile)
 	plt.legend(loc='lower left') # 凡例表示
-	plt.xlim(xmin=0, xmax=ivals.shape[0] - 1)
+	plt.xlim(xmin=0, xmax=xvals.shape[0] - 1)
 	plt.show()
 
 def trainFlowControl():
@@ -212,11 +217,11 @@ def train():
 			s.dnn.update(accumLoss)
 
 			# 時間計測＆残り時間表示
-			if itr % 10 == 0:
+			if itr % s.itrCountInterval == 0:
 				curTime = time.time()
 				elpTime = curTime - startTime
 				endTime = elpTime * itrCount / itr if itr else 0.0
-				print("{0:.2f}itr/s : remain {1:.2f}s".format(10.0 / (curTime - prevTime), endTime - elpTime))
+				print("{0:.2f}itr/s : remain {1:.2f}s".format(s.itrCountInterval / (curTime - prevTime), endTime - elpTime))
 				prevTime = curTime
 
 			if s.batchOffset == 0:

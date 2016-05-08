@@ -65,6 +65,7 @@ batchRandom = configIni.getInt("batchRandom", "1") # バッチ位置をランダ
 gradClip = configIni.getFloat("gradClip", "5") # 勾配クリップ
 grEnable = configIni.getInt("grEnable", "0") # グラフ表示有効かどうか
 evalInterval = configIni.getInt("evalInterval", "20") # 評価（グラフも）間隔エポック数
+itrCountInterval = configIni.getInt("itrCountInterval", "10") # イタレーション速度計測間隔
 predLen = configIni.getInt("predLen", "1") # 未来予測のサンプル数
 predAve = configIni.getInt("predAve", "1") # 未来予測分を平均化するかどうか
 optm = configIni.getStr("optm", "Adam") # 勾配計算最適化オブジェクトタイプ

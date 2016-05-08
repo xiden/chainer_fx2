@@ -28,7 +28,10 @@ gxOut = None
 gyOut = None
 glIn = None
 glOut = None
+glOutV = None
 glTeach = None
+glTeachV = None
+glErr = None
 
 class Dnn(object):
 	"""クラス分類用のモデルとオプティマイザへルパクラス"""
@@ -84,7 +87,10 @@ def initGraph():
 	global gyOut
 	global glIn
 	global glOut
+	global glOutV
 	global glTeach
+	global glTeachV
+	global glErr
 
 	# グラフ描画用の初期化
 	if s.grEnable:
@@ -110,7 +116,12 @@ def initGraph():
 
 		glIn, = subPlot1.plot(gxIn, gyIn, label="in")
 		glOut, = subPlot2.plot(gxOut, gyOut, label="out")
+		glOutV = subPlot2.axvline(x=0, color='gray')
 		glTeach, = subPlot2.plot(gxOut, gyOut, label="trg")
+		glTeachV = subPlot2.axvline(x=0, color='green')
+		if s.mode == "testhr":
+			glErr, = subPlot2.plot(gxOut, gyOut, label="err", color='red')
+		print(glTeachV)
 
 def getTestFileName(testFileName):
 	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan)
@@ -136,7 +147,7 @@ def getTrainData(dataset, i):
 	i += clsNum
 
 	# フレーム内の最低値を0になるようシフトする
-	x = x - x.min()
+	x = x - np.average(x)
 
 	return s.xp.asarray([x], dtype=np.float32), s.xp.asarray([i], dtype=np.int32)
 
@@ -192,12 +203,16 @@ def evaluate(dataset, index):
 		# グラフにデータを描画する
 		plt.title(s.trainDataFile + " : " + str(index)) # グラフタイトル
 		xvals = dataset[index : index + s.minEvalLen]
+		tx = int(t.data[0])
+		ox = y.data.argmax(1)[0]
 		tvals = np.zeros(s.n_out, dtype=np.float32)
-		tvals[t.data[0]] = 1.0
+		tvals[tx] = 1.0
 		yvals = np.asarray(y.data[0].tolist(), dtype=np.float32)
 		glIn.set_ydata(xvals)
 		glTeach.set_ydata(tvals)
+		glTeachV.set_xdata([gxOut[tx], gxOut[tx]])
 		glOut.set_ydata(yvals)
+		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
 		subPlot1.set_ylim(f.npMaxMin(xvals))
 		subPlot2.set_ylim(f.npMaxMin([tvals, yvals]))
@@ -229,12 +244,14 @@ def testhr():
 		xvals = np.zeros(testLen, dtype=np.float32)
 		tvals = np.zeros(testLen, dtype=np.int32)
 		yvals = np.zeros(testLen, dtype=np.int32)
+		evals = np.zeros(testLen, dtype=np.int32)
 
 		gxIn = np.arange(0, xvals.shape[0], 1)
 		gxOut = np.arange(0, testLen, 1)
 		glIn.set_xdata(gxIn)
 		glTeach.set_xdata(gxOut)
 		glOut.set_xdata(gxOut)
+		glErr.set_xdata(gxOut)
 		subPlot1.set_xlim(0, xvals.shape[0])
 		subPlot2.set_xlim(0, testLen)
 
@@ -245,8 +262,9 @@ def testhr():
 		y = evaluator(chainer.Variable(x, volatile='on'))
 
 		xvals[i] = dataset[i + s.frameSize - 1]
-		tvals[i] = int(t[0]) - clsNum
-		yvals[i] = y.data.argmax(1)[0] - clsNum
+		tvals[i] = tval = int(t[0]) - clsNum
+		yvals[i] = yval = int(y.data.argmax(1)[0]) - clsNum
+		evals[i] = tval - yval
 
 		count += 1
 		if tvals[i] == yvals[i]:
@@ -263,12 +281,14 @@ def testhr():
 			if i == testLen - 1:
 				# 最終データ完了後なら
 				# xvals の平均値にt、yが近づくよう調整してCSVファイルに吐き出す
-				xvalsMedian = np.median(xvals)
+				xvalsAverage = np.average(xvals)
 				scale = clsSpan / (clsNum * 100.0)
 				tvals = tvals * scale
 				yvals = yvals * scale
-				tvals += xvalsMedian
-				yvals += xvalsMedian
+				evals = evals * scale
+				tvals += xvalsAverage
+				yvals += xvalsAverage
+				evals += xvalsAverage
 
 				with codecs.open(f.getTestHrFileBase() + str(s.curEpoch) + ".csv", 'w', "shift_jis") as file:
 					writer = csv.writer(file)
@@ -278,6 +298,7 @@ def testhr():
 			glIn.set_ydata(xvals)
 			glTeach.set_ydata(tvals)
 			glOut.set_ydata(yvals)
+			glErr.set_ydata(evals)
 
 			gi = i + 1
 			subPlot1.set_ylim(f.npMaxMin([xvals[:gi]]))
