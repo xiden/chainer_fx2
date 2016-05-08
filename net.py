@@ -3,8 +3,38 @@ import chainer.functions as F
 import chainer.links as L
 import numpy as np
 
+class NNNN(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	def __call__(self, x):
+		h1 = self.l1(x)
+		h2 = self.l2(F.relu(h1))
+		h3 = self.l3(F.relu(h2))
+		y = self.l4(F.relu(h3))
+		return y
+
+	def getModelKind(self):
+		return "clas"
+
 class NNLNLNLNLNN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -45,7 +75,10 @@ class NNLNLNLNLNN(chainer.Chain):
 		return "lstm"
 
 class NLNLNLNLNN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -84,7 +117,10 @@ class NLNLNLNLNN(chainer.Chain):
 		return "lstm"
 
 class NLNLNLNLN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -121,7 +157,10 @@ class NLNLNLNLN(chainer.Chain):
 		return "lstm"
 
 class NNNLLLNNN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -157,7 +196,10 @@ class NNNLLLNNN(chainer.Chain):
 		return "lstm"
 
 class NNLLLLNN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -192,7 +234,10 @@ class NNLLLLNN(chainer.Chain):
 		return "lstm"
 
 class NNLLLNN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -224,7 +269,10 @@ class NNLLLNN(chainer.Chain):
 		return "lstm"
 
 class NLLLLN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -255,7 +303,10 @@ class NLLLLN(chainer.Chain):
 		return "lstm"
 
 class NLLLN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -283,7 +334,10 @@ class NLLLN(chainer.Chain):
 		return "lstm"
 
 class NNLLNN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -312,7 +366,10 @@ class NNLLNN(chainer.Chain):
 		return "lstm"
 
 class NNLNN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -338,7 +395,10 @@ class NNLNN(chainer.Chain):
 		return "lstm"
 
 class NLLN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -363,7 +423,10 @@ class NLLN(chainer.Chain):
 		return "lstm"
 
 class NLN(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.Linear(n_in, n_midunits),
@@ -385,7 +448,10 @@ class NLN(chainer.Chain):
 		return "lstm"
 
 class LLLL(chainer.Chain):
-	def __init__(self, n_in, n_units, n_out, gpu, train=True):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
 		n_midunits = n_units // 1
 		super().__init__(
 			l1=L.LSTM(n_in, n_midunits),

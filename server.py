@@ -9,7 +9,6 @@ import threading
 import time
 from numba import jit
 import share as s
-import candle
 import traceback
 
 @jit

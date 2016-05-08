@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>Configs/light.ini</CommandLineArguments>
+    <CommandLineArguments>Configs/clslight.ini</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -27,11 +27,22 @@
     <EnableUnmanagedDebugging>false</EnableUnmanagedDebugging>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="candle.py" />
     <Compile Include="chainer_fx.py" />
+    <Compile Include="funcs.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="fxreader.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="graph.py" />
     <Compile Include="graph_testhr.py" />
     <Compile Include="ini.py" />
+    <Compile Include="mk_clas.py">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="mk_lstm.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="share.py">
       <SubType>Code</SubType>
     </Compile>
@@ -47,6 +58,7 @@
     <Folder Include="Configs\" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Configs\clslight.ini" />
     <Content Include="Configs\semilarge.ini" />
     <Content Include="Configs\large.ini" />
     <Content Include="Configs\light.ini" />
