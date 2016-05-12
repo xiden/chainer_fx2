@@ -124,12 +124,12 @@ class Server(threading.Thread):
 			self.acceptanceSock.shutdown(socket.SHUT_RDWR)
 			self.acceptanceSock.close()
 
-	#@jit
+	@jit
 	def run(self):
 		#s.trainFxYen()
 		pass
 
-	#@jit
+	@jit
 	def procFunc(self, conn):
 		# 命令パケット受け取り
 		pkt = recvPacket(conn, self.buf)

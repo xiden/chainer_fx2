@@ -271,7 +271,7 @@ def trainBatch(dataset, itr):
 
 	return accumLoss
 
-#@jit
+@jit
 def evaluate(dataset, index, onlyAveDYVals = False):
 	"""現在のニューラルネットワーク評価処理"""
 
@@ -367,7 +367,7 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 
 	return math.exp(float(accumLoss) / (bpropLen - bpropHeadLossCut))
 
-#@jit
+@jit
 def testhr():
 	"""指定データを現在のニューラルネットワークを使用し予測値部分の的中率を計測する"""
 

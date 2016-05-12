@@ -152,18 +152,20 @@ def getTrainData(dataset, i):
 	return s.xp.asarray([x], dtype=np.float32), s.xp.asarray([i], dtype=np.int32)
 
 @jit
-def trainBatch(dataset, itr):
-	"""ミニバッチで学習する"""
-
+def getBatchs(dataset):
 	# 学習データと教師データ取得
 	xa = s.xp.zeros(shape=(s.batchSize, s.n_in), dtype=np.float32)
 	ta = s.xp.zeros(shape=(s.batchSize,), dtype=np.int32)
 	for bi in range(s.batchSize):
 		xa[bi][:], ta[bi] = getTrainData(dataset, s.batchStartIndices[bi])
-	x = chainer.Variable(xa)
-	t = chainer.Variable(ta)
+	return chainer.Variable(xa), chainer.Variable(ta)
+
+@jit
+def trainBatch(dataset, itr):
+	"""ミニバッチで学習する"""
 
 	# 学習実行
+	x, t = getBatchs(dataset)
 	y, loss = s.dnn.forward(x, t, True)
 
 	# ユーザー入力による流れ制御
