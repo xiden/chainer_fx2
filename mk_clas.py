@@ -8,6 +8,7 @@ import codecs
 import numpy as np
 from numba import jit
 import chainer
+import chainer.cuda as cuda
 import matplotlib.pyplot as plt
 import chainer.functions as F
 import ini
@@ -17,6 +18,7 @@ import funcs as f
 
 clsNum = 0 # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 clsSpan = 0 # クラス分け方でのスパン(pips)
+dropoutRatio = 0.5 # ドロップアウト率
 
 subPlot1 = None
 subPlot2 = None
@@ -27,7 +29,6 @@ gyOut = None
 glIn = None
 glOut = None
 glOutV = None
-glTeach = None
 glTeachV = None
 glErr = None
 
@@ -65,10 +66,12 @@ def init(iniFileName):
 	"""クラス分類用の初期化を行う"""
 	global clsNum
 	global clsSpan
+	global dropoutRatio
 
 	configIni = ini.file(iniFileName, "CLAS")
 	clsNum = configIni.getInt("clsNum", "3") # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 	clsSpan = configIni.getFloat("clsSpan", "3") # クラス分け方でのスパン(pips)
+	dropoutRatio = configIni.getFloat("dropoutRatio", "0.5") # ドロップアウト率
 
 	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
@@ -88,7 +91,6 @@ def initGraph():
 	global glIn
 	global glOut
 	global glOutV
-	global glTeach
 	global glTeachV
 	global glErr
 
@@ -114,17 +116,17 @@ def initGraph():
 			subPlot1.set_xlim([0, s.minPredLen])
 			gxIn = np.arange(0, s.minPredLen, 1)
 			gyIn = np.zeros(s.minPredLen)
+			glOutV = subPlot2.axvline(x=0, color='red')
 		else:
 			subPlot1.set_xlim([0, s.minEvalLen])
 			subPlot1.axvline(x=s.frameSize, color='black')
 			gxIn = np.arange(0, s.minEvalLen, 1)
 			gyIn = np.zeros(s.minEvalLen)
-			glTeach, = subPlot2.plot(gxOut, gyOut, label="trg")
-			glTeachV = subPlot2.axvline(x=0, color='green')
+			glTeachV = subPlot2.axvline(x=0, color='red')
+			glOutV = subPlot2.axvline(x=0, color='orange')
 
 		glIn, = subPlot1.plot(gxIn, gyIn, label="in")
 		glOut, = subPlot2.plot(gxOut, gyOut, label="out")
-		glOutV = subPlot2.axvline(x=0, color='gray')
 		
 		if s.mode == "testhr":
 			glErr, = subPlot2.plot(gxOut, gyOut, label="err", color='red')
@@ -132,18 +134,16 @@ def initGraph():
 def getTestFileName(testFileName):
 	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan)
 
-@jit
-def getTrainData(dataset, i):
+#@jit
+def trainGetDataAndT(dataset, i):
 	"""学習データと教師データ取得"""
 	# フレーム取得
 	x = dataset[i : i + s.frameSize]
-
 	# 教師値取得
 	if s.predAve:
 		t = (dataset[i + s.frameSize : i + s.frameSize + s.predLen] * s.predMeanK).sum()
 	else:
 		t = dataset[i + s.frameSize + s.predLen - 1]
-
 	# フレームの最終値から教師値への変化量を教師ベクトルにする
 	i = int(round(100.0 * float(t - x[-1]) * clsNum / clsSpan, 0))
 	if i < -clsNum:
@@ -151,27 +151,34 @@ def getTrainData(dataset, i):
 	elif clsNum < i:
 		i = clsNum
 	i += clsNum
-
 	# フレーム内の平均値を0になるようシフトする
-	x = x - np.average(x)
+	x = x - (x.sum() / s.frameSize)
+	return x, i
 
-	return s.xp.asarray([x], dtype=np.float32), s.xp.asarray([i], dtype=np.int32)
+#@jit
+def trainGetData(dataset, i):
+	"""学習データのみ取得"""
+	# フレーム取得
+	x = dataset[i : i + s.frameSize]
+	# フレーム内の平均値を0になるようシフトする
+	x = x - (x.sum() / s.frameSize)
+	return x
 
-@jit
-def getBatchs(dataset):
+#@jit
+def trainGetBatchs(dataset):
 	# 学習データと教師データ取得
-	xa = s.xp.zeros(shape=(s.batchSize, s.n_in), dtype=np.float32)
-	ta = s.xp.zeros(shape=(s.batchSize,), dtype=np.int32)
+	xa_cpu = np.zeros(shape=(s.batchSize, s.n_in), dtype=np.float32)
+	ta_cpu = np.zeros(shape=(s.batchSize,), dtype=np.int32)
 	for bi in range(s.batchSize):
-		xa[bi][:], ta[bi] = getTrainData(dataset, s.batchStartIndices[bi])
-	return chainer.Variable(xa), chainer.Variable(ta)
+		xa_cpu[bi][...], ta_cpu[bi] = trainGetDataAndT(dataset, s.batchStartIndices[bi])
+	return chainer.Variable(cuda.to_gpu(xa_cpu)), chainer.Variable(cuda.to_gpu(ta_cpu))
 
-@jit
+#@jit
 def trainBatch(dataset, itr):
 	"""ミニバッチで学習する"""
 
 	# 学習実行
-	x, t = getBatchs(dataset)
+	x, t = trainGetBatchs(dataset)
 	y, loss = s.dnn.forward(x, t, True)
 
 	# ユーザー入力による流れ制御
@@ -189,7 +196,7 @@ def trainBatch(dataset, itr):
 
 	return loss
 
-@jit
+#@jit
 def evaluate(dataset, index):
 	"""現在のニューラルネットワーク評価処理"""
 
@@ -200,9 +207,11 @@ def evaluate(dataset, index):
 	evdnn = Dnn(evaluator, None)
 
 	# 学習データ取得
-	x, t = getTrainData(dataset, index)
-	x = chainer.Variable(x, volatile='on')
-	t = chainer.Variable(t, volatile='on')
+	xa, ta = trainGetDataAndT(dataset, index)
+	xa = s.xp.asarray([xa], dtype=np.float32)
+	ta = s.xp.asarray([ta], dtype=np.int32)
+	x = chainer.Variable(xa, volatile='on')
+	t = chainer.Variable(ta, volatile='on')
 
 	# ニューラルネットを通す
 	y, loss = evdnn.forward(x, t, True)
@@ -211,14 +220,13 @@ def evaluate(dataset, index):
 	if s.grEnable:
 		# グラフにデータを描画する
 		plt.title(s.trainDataFile + " : " + str(index)) # グラフタイトル
-		xvals = dataset[index : index + s.minEvalLen]
+		xvals = cuda.to_cpu(dataset[index : index + s.minEvalLen])
 		tx = int(t.data[0])
 		ox = y.data.argmax(1)[0]
 		tvals = np.zeros(s.n_out, dtype=np.float32)
 		tvals[tx] = 1.0
 		yvals = np.asarray(y.data[0].tolist(), dtype=np.float32)
 		glIn.set_ydata(xvals)
-		glTeach.set_ydata(tvals)
 		glTeachV.set_xdata([gxOut[tx], gxOut[tx]])
 		glOut.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
@@ -237,7 +245,7 @@ def writeTestHrCsv(xvals, tvals, yvals):
 		for i in range(xvals.shape[0]):
 			writer.writerow([xvals[i], tvals[i], yvals[i]])
 
-@jit
+#@jit
 def testhr():
 	"""指定データを現在のニューラルネットワークを使用し予測値部分の的中率を計測する"""
 
@@ -255,6 +263,7 @@ def testhr():
 	testLen = dataset.shape[0] - s.minEvalLen
 	count = 0
 	hitcount = 0
+	zero = np.zeros(s.batchSize, dtype=np.float32)
 
 	if s.grEnable:
 		xvals = np.zeros(testLen, dtype=np.float32)
@@ -265,36 +274,44 @@ def testhr():
 		gxIn = np.arange(0, xvals.shape[0], 1)
 		gxOut = np.arange(0, testLen, 1)
 		glIn.set_xdata(gxIn)
-		glTeach.set_xdata(gxOut)
 		glOut.set_xdata(gxOut)
 		glErr.set_xdata(gxOut)
 		subPlot1.set_xlim(0, xvals.shape[0])
 		subPlot2.set_xlim(0, testLen)
 
-	for i in range(testLen):
-		# 学習データ取得
-		x, t = getTrainData(dataset, i)
+	i = 0
+	loop = 0
+	while i < testLen:
+		# 学習データと教師データ取得
+		# バッチ数分まとめて取得する
+		n = testLen - i
+		if s.batchSize < n:
+			n = s.batchSize
+		xa_cpu = np.zeros(shape=(n, s.n_in), dtype=np.float32)
+		ta_cpu = np.zeros(shape=(n,), dtype=np.int32)
+		for bi in range(n):
+			xa_cpu[bi][...], ta_cpu[bi] = trainGetDataAndT(dataset, i + bi)
 		# ニューラルネットを通す
-		y = evaluator(chainer.Variable(x, volatile='on'))
+		y = evaluator(chainer.Variable(cuda.to_gpu(xa_cpu), volatile='on'))
+		y = cuda.to_cpu(y.data)
 
-		xvals[i] = dataset[i + s.frameSize - 1]
-		tvals[i] = tval = int(t[0]) - clsNum
-		yvals[i] = yval = int(y.data.argmax(1)[0]) - clsNum
-		evals[i] = tval - yval if tval * yval < 0 else 0
+		# 描画用データにセット
+		xvals[i : i + n] = dataset[i : i + n]
+		tvals[i : i + n] = tval = ta_cpu - clsNum
+		yvals[i : i + n] = yval = y.argmax(1) - clsNum
+		evals[i : i + n] = np.less(tval * yval, 0) * (tval - yval)
 
-		count += 1
-		if tvals[i] == yvals[i]:
-			hitcount += 1
+		# 的中率更新
+		i += n
+		hitcount += np.equal(tval, yval).sum()
+		print(i, ": ", 100.0 * hitcount / i, "%")
 
-		if count % 100 == 0:
-			print(i, ": ", 100.0 * hitcount / count, "%")
-
-		if (count % 1000 == 0) or (i == testLen - 1):
+		if loop % 10 == 0 or testLen <= i:
 			# 指定間隔または最終データ完了後に
 			# グラフにデータを描画する
 			plt.title("testhr: " + s.trainDataFile) # グラフタイトル
 
-			if i == testLen - 1:
+			if testLen <= i:
 				# 最終データ完了後なら
 				# xvals の平均値にt、yが近づくよう調整してCSVファイルに吐き出す
 				xvalsAverage = np.average(xvals)
@@ -308,17 +325,17 @@ def testhr():
 				writeTestHrCsv(xvals, tvals, yvals)
 
 			glIn.set_ydata(xvals)
-			glTeach.set_ydata(tvals)
 			glOut.set_ydata(yvals)
 			glErr.set_ydata(evals)
 
-			gi = i + 1
-			subPlot1.set_ylim(f.npMaxMin([xvals[:gi]]))
-			subPlot2.set_ylim(f.npMaxMin([tvals[:gi], yvals[:gi]]))
+			subPlot1.set_ylim(f.npMaxMin([xvals[:i]]))
+			subPlot2.set_ylim(f.npMaxMin([tvals[:i], yvals[:i]]))
 			plt.draw()
 			plt.pause(0.001)
 
-	result = 100.0 * hitcount / count
+		loop += 1
+
+	result = 100.0 * hitcount / testLen
 	print("result: ", result, "%")
 
 	testFileIni = ini.file(s.testFileName + ".ini", f.getTestHrFileBase() + str(s.curEpoch))
@@ -328,26 +345,24 @@ def testhr():
 		plt.ioff() # 対話モードOFF
 		plt.show()
 
-@jit
+#@jit
 def fxGetData(dataset):
 	"""予測元データ取得"""
 	# フレーム取得
 	x = dataset[-s.frameSize:]
 	# フレーム内の平均値を0になるようシフトする
-	x = x - np.average(x)
+	x = x - (x.sum() / s.frameSize)
 	return s.xp.asarray([x], dtype=np.float32)
 
-#@jit
+##@jit
 def fxPrediction():
 	"""現在の円データから予測する"""
 
 	# モデル取得
 	pred = s.dnn.model
 	pred.train = False
-	# 予測元データ取得
-	x = fxGetData(s.fxYenData)
-	# ニューラルネットを通す
-	y = pred(chainer.Variable(x, volatile='on'))
+	# 予測元データ取得してニューラルネットを通す
+	y = pred(chainer.Variable(fxGetData(s.fxYenData), volatile='on'))
 	yvals = np.asarray(y.data[0].tolist(), dtype=np.float32)
 	ox = y.data.argmax(1)[0]
 	ret = float(clsSpan * (ox - clsNum) / clsNum)

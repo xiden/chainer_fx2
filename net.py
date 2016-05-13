@@ -3,6 +3,7 @@ import chainer.functions as F
 import chainer.links as L
 import numpy as np
 from numba import jit
+import mk_clas as c
 
 class NNNNN(chainer.Chain):
 	def __init__(self):
@@ -22,7 +23,7 @@ class NNNNN(chainer.Chain):
 	def reset_state(self):
 		pass
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.relu(h1))
@@ -52,12 +53,12 @@ class NDNDN(chainer.Chain):
 	def reset_state(self):
 		pass
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
-		h2 = self.l2(F.dropout(F.relu(h1), ratio=0.1, train=self.train))
+		h2 = self.l2(F.dropout(F.relu(h1), ratio=c.dropoutRatio, train=self.train))
 		h3 = self.l3(F.relu(h2))
-		h4 = self.l4(F.dropout(F.relu(h3), ratio=0.1, train=self.train))
+		h4 = self.l4(F.dropout(F.relu(h3), ratio=c.dropoutRatio, train=self.train))
 		y = self.l5(F.relu(h4))
 		return y
 
@@ -83,14 +84,14 @@ class NDDDDD(chainer.Chain):
 	def reset_state(self):
 		pass
 
-	@jit
+	##@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
-		h2 = self.l2(F.dropout(F.relu(h1), ratio=0.01, train=self.train))
-		h3 = self.l3(F.dropout(F.relu(h2), ratio=0.01, train=self.train))
-		h4 = self.l4(F.dropout(F.relu(h3), ratio=0.01, train=self.train))
-		h5 = self.l5(F.dropout(F.relu(h4), ratio=0.01, train=self.train))
-		y = self.l6(F.dropout(F.relu(h5), ratio=0.01, train=self.train))
+		h2 = self.l2(F.dropout(F.relu(h1), ratio=c.dropoutRatio, train=self.train))
+		h3 = self.l3(F.dropout(F.relu(h2), ratio=c.dropoutRatio, train=self.train))
+		h4 = self.l4(F.dropout(F.relu(h3), ratio=c.dropoutRatio, train=self.train))
+		h5 = self.l5(F.dropout(F.relu(h4), ratio=c.dropoutRatio, train=self.train))
+		y = self.l6(F.dropout(F.relu(h5), ratio=c.dropoutRatio, train=self.train))
 		return y
 
 	def getModelKind(self):
@@ -113,7 +114,7 @@ class NNNN(chainer.Chain):
 	def reset_state(self):
 		pass
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.relu(h1))
@@ -151,7 +152,7 @@ class NNLNLNLNLNN(chainer.Chain):
 		self.l7.reset_state()
 		self.l9.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -195,7 +196,7 @@ class NLNLNLNLNN(chainer.Chain):
 		self.l6.reset_state()
 		self.l8.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -237,7 +238,7 @@ class NLNLNLNLN(chainer.Chain):
 		self.l6.reset_state()
 		self.l8.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -277,7 +278,7 @@ class NNNLLLNNN(chainer.Chain):
 		self.l5.reset_state()
 		self.l6.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -317,7 +318,7 @@ class NNLLLLNN(chainer.Chain):
 		self.l5.reset_state()
 		self.l6.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -354,7 +355,7 @@ class NNLLLNN(chainer.Chain):
 		self.l4.reset_state()
 		self.l5.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -390,7 +391,7 @@ class NLLLLN(chainer.Chain):
 		self.l4.reset_state()
 		self.l5.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -423,7 +424,7 @@ class NLLLN(chainer.Chain):
 		self.l3.reset_state()
 		self.l4.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -455,7 +456,7 @@ class NNLLNN(chainer.Chain):
 		self.l3.reset_state()
 		self.l4.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -486,7 +487,7 @@ class NNLNN(chainer.Chain):
 	def reset_state(self):
 		self.l3.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -516,7 +517,7 @@ class NLLN(chainer.Chain):
 		self.l2.reset_state()
 		self.l3.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -543,7 +544,7 @@ class NLN(chainer.Chain):
 	def reset_state(self):
 		self.l2.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))
@@ -573,7 +574,7 @@ class LLLL(chainer.Chain):
 		self.l3.reset_state()
 		self.l4.reset_state()
 
-	@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(h1, train=self.train))

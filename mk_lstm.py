@@ -76,16 +76,16 @@ class Dnn(object):
 		loss.unchain_backward()  # truncate
 		self.optimizer.update()
 
-@jit('f8(f8)')
+#@jit('f8(f8)')
 def encode(v):
 	return (v - 110.0) / 20.0
-@jit
+#@jit
 def encodeArray(v):
 	return (v - 110.0) / 20.0
-@jit('f8(f8)')
+#@jit('f8(f8)')
 def decode(v):
 	return v * 20.0 + 110.0
-@jit
+#@jit
 def decodeArray(v):
 	return v * 20.0 + 110.0
 
@@ -216,8 +216,8 @@ def initGraph():
 def getTestFileName(testFileName):
 	return testFileName + "b" + str(bpropLen) + "bs" + str(bpropStep)
 
-@jit
-def getTrainData(dataset, i):
+#@jit
+def trainGetDataAndT(dataset, i):
 	"""学習データと教師データ取得"""
 	if s.predAve:
 		t = (dataset[i + s.frameSize : i + s.frameSize + s.predLen] * s.predMeanK).sum()
@@ -236,7 +236,7 @@ def trainBatch(dataset, itr):
 		ta = s.xp.zeros(shape=(s.batchSize, s.n_out), dtype=np.float32)
 		offset = i * bpropStep
 		for bi in range(s.batchSize):
-			xa[bi][:], ta[bi][:] = getTrainData(dataset, s.batchStartIndices[bi] + offset)
+			xa[bi][:], ta[bi][:] = trainGetDataAndT(dataset, s.batchStartIndices[bi] + offset)
 		x = chainer.Variable(xa)
 		t = chainer.Variable(ta)
 
@@ -272,7 +272,7 @@ def trainBatch(dataset, itr):
 
 	return accumLoss
 
-@jit
+#@jit
 def evaluate(dataset, index, onlyAveDYVals = False):
 	"""現在のニューラルネットワーク評価処理"""
 
@@ -304,7 +304,7 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 
 	for i in range(bpropLen):
 		# 学習データ取得
-		x, t = getTrainData(dataset, index + i * bpropStep)
+		x, t = trainGetDataAndT(dataset, index + i * bpropStep)
 		ival = x[0][-1]
 		x = chainer.Variable(x, volatile='on')
 		t = chainer.Variable(t, volatile='on')
@@ -368,7 +368,7 @@ def evaluate(dataset, index, onlyAveDYVals = False):
 
 	return math.exp(float(accumLoss) / (bpropLen - bpropHeadLossCut))
 
-@jit
+#@jit
 def testhr():
 	"""指定データを現在のニューラルネットワークを使用し予測値部分の的中率を計測する"""
 
@@ -418,7 +418,7 @@ def testhr():
 
 	while testPos <= testEnd:
 		# 学習データ取得
-		x, t = getTrainData(dataset, testPos)
+		x, t = trainGetDataAndT(dataset, testPos)
 		inLast = float(x[0][-1])
 		x = chainer.Variable(x, volatile='on')
 

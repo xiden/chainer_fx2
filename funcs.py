@@ -5,6 +5,7 @@ import sys
 import csv
 from numba import jit
 import numpy as np
+import chainer.cuda as cuda
 import matplotlib.pyplot as plt
 import os.path as path
 from pathlib import Path
@@ -41,7 +42,7 @@ def snapShotPredictionModel():
 	e.train = False  # dropout does nothing
 	s.fxYenPredictionModel = e
 
-@jit
+#@jit
 def npMaxMin(arrays):
 	rmax = float(arrays[0].max())
 	rmin = float(arrays[0].min())
@@ -123,7 +124,7 @@ def testhr_g():
 	plt.xlim(xmin=0, xmax=xvals.shape[0] - 1)
 	plt.show()
 
-@jit
+#@jit
 def trainFlowControl():
 	"""ユーザー入力による学習処理時の評価位置移動、終了要求などの共通制御処理"""
 
@@ -162,7 +163,7 @@ def trainFlowControl():
 	if s.requestQuit and (win32api.GetAsyncKeyState(win32con.VK_PAUSE) & 0x8000) != 0:
 		s.quitNow = True
 
-@jit
+#@jit
 def train():
 	"""学習モード処理"""
 
@@ -176,6 +177,7 @@ def train():
 	# 学習データ読み込み
 	print("Loading data from  " + s.trainDataFile)
 	dataset = s.mk.read(s.trainDataFile, s.inMA)
+	#dataset = cuda.to_gpu(dataset)
 	print("    length = {}".format(dataset.shape[0]))
 
 	# 学習ループ関係変数初期化
