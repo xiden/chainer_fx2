@@ -81,10 +81,12 @@ predMeanK = np.ones(predLen) # 未来教師データの平均化係数
 predMeanK = predMeanK / predMeanK.sum()
 minPredLen = 0 # ドル円未来予測に必要な最小データ数
 minEvalLen = 0 # 学習結果の評価に必要な最小データ数
+fxInitialYenDataLen = 0 # 初期化時にMT4から送る必要がある円データ数
 fxYenData = np.zeros(1, dtype=np.float32) # MT4から送られる円データ、添え字は fxMinData と同じ
 fxMinData = np.zeros(1, dtype=np.int32) # MT4から送られる分データ、添え字は fxYenData と同じ
 fxYenDataTrain = None # 学習用の円データ、学習したいデータが更新されたら None 以外になる
 fxYenPredictionModel = None # ドル円未来予測用のネットワークモデル
+fxRetLen = 0 # クライアントに返す結果データ長
 modelLock = threading.Lock() # model を排他処理するためのロック
 evalIndex = 0 # 学習中の学習データ評価位置
 evalIndexMove = 0 # evalIndex の移動量
@@ -98,7 +100,6 @@ batchOffsetInitial = 0 # 学習時バッチ処理の初期オフセット
 batchOffset = 0 # 学習時バッチ処理の現在オフセット
 n_in = 0 # ニューラルネットの入力次元数
 n_out = 0 # ニューラルネットの出力次元数
-retLen = 0 # クライアントに返す結果データ長
 
 # ネットワークモデルの種類により大域的に変わる処理の初期化を行う
 netClassDef = getattr(net, netType)

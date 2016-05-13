@@ -132,7 +132,8 @@ def init(iniFileName):
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
 	s.n_in = s.frameSize # ニューラルネットの入力次元数
 	s.n_out = 1 # ニューラルネットの出力次元数
-	s.retLen = outDeltaLen - 1 # クライアントに返す結果データ長
+	s.fxRetLen = outDeltaLen - 1 # クライアントに返す結果データ長
+	s.fxInitialYenDataLen = s.minEvalLen * 3 # 初期化時にMT4から送る必要がある円データ数
 
 	# 未来予測データの合成係数初期化
 	initAveYenKs(fxAveYenK)
@@ -266,8 +267,8 @@ def trainBatch(dataset, itr):
 			now = time.time()
 			perp = evaluate(dataset, s.evalIndex, onlyAveDYVals)
 			print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
-			if 1 <= itr and s.optm == "Adam":
-				print('learning rate =', s.dnn.optimizer.lr)
+			#if 1 <= itr and s.optm == "Adam":
+			#	print('learning rate =', s.dnn.optimizer.lr)
 
 	return accumLoss
 

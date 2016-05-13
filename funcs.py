@@ -42,17 +42,6 @@ def snapShotPredictionModel():
 	s.fxYenPredictionModel = e
 
 @jit
-def getFxYenData(dataset, i):
-	"""ドル円データ取得"""
-	tstart = i + s.frameSize
-	tend = tstart + s.predLen
-	if tend <= dataset.shape[0]:
-		t = (dataset[tstart : tend] * s.predMeanK).sum()
-	else:
-		t = None
-	return s.xp.asarray([dataset[i : tstart]], dtype=np.float32), t
-
-@jit
 def npMaxMin(arrays):
 	rmax = float(arrays[0].max())
 	rmin = float(arrays[0].min())
@@ -245,8 +234,8 @@ def train():
 		itr += 1
 
 	# INIファイルへ保存
-	if s.optm == "Adam":
-		s.configIni.set("learningRrate", s.dnn.optimizer.lr)
+	#if s.optm == "Adam":
+	#	s.configIni.set("learningRrate", s.dnn.optimizer.lr)
 
 	# モデルとオプティマイザ保存
 	s.saveModelAndOptimizer()

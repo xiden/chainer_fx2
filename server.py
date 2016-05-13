@@ -87,8 +87,8 @@ class Server(threading.Thread):
 		self.acceptanceSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
 	def launch(self):
-		# とりあえず現状のモデルをドル円予測で使える様にコピー
-		s.snapShotPredictionModel()
+		## とりあえず現状のモデルをドル円予測で使える様にコピー
+		#s.snapShotPredictionModel()
 
 		# 学習用スレッド開始
 		self.start()
@@ -129,7 +129,7 @@ class Server(threading.Thread):
 		#s.trainFxYen()
 		pass
 
-	@jit
+	#@jit
 	def procFunc(self, conn):
 		# 命令パケット受け取り
 		pkt = recvPacket(conn, self.buf)
@@ -154,19 +154,19 @@ class Server(threading.Thread):
 		if cmdType == 1:
 			# 初期化に必要なデータ数とサーバーが返す予測データ数の取得
 			a = np.zeros(2, dtype=np.int32)
-			a[0] = s.minEvalLen * 3
-			a[1] = s.retLen
+			a[0] = s.fxInitialYenDataLen
+			a[1] = s.fxRetLen
 			conn.send(a)
 			return 1
 		elif cmdType == 2:
 			# 初期化データの受け取り
 			n = size / 8
-			if n < s.minEvalLen:
+			if n < s.fxInitialYenDataLen:
 				conn.send(np.asarray(0, dtype=np.int32))
 				return 0
-			s.fxYenData = candle.encodeArray(pkt[ipkt : ipkt + 4 * n].view(dtype=np.float32))
+			s.fxYenData = np.array(pkt[ipkt : ipkt + 4 * n].view(dtype=np.float32))
 			ipkt += 4 * n
-			s.fxMinData = pkt[ipkt : ipkt + 4 * n].view(dtype=np.int32)
+			s.fxMinData = np.array(pkt[ipkt : ipkt + 4 * n].view(dtype=np.int32))
 			if s.fxYenDataTrain is None:
 				s.fxYenDataTrain = s.fxYenData
 			conn.send(np.asarray(1, dtype=np.int32))
@@ -177,9 +177,9 @@ class Server(threading.Thread):
 			if count == 0:
 				conn.send(np.asarray(0, dtype=np.int32))
 				return 0
-			yenData = pkt[ipkt : ipkt + 4 * count].view(dtype=np.float32)
+			yenData = np.array(pkt[ipkt : ipkt + 4 * count].view(dtype=np.float32))
 			ipkt += 4 * count
-			minData = pkt[ipkt : ipkt + 4 * count].view(dtype=np.int32)
+			minData = np.array(pkt[ipkt : ipkt + 4 * count].view(dtype=np.int32))
 
 			m = s.fxMinData[-1]
 			index = int(np.searchsorted(minData, int(m)))
@@ -191,8 +191,8 @@ class Server(threading.Thread):
 				n = 0
 
 			# 現在保持しているデータ最後尾に対応するデータを上書き
-			s.fxYenData[-1] = candle.encode(yenData[index - 1])
-			print("set: ", yenData[index - 1])
+			s.fxYenData[-1] = yenData[index - 1]
+			#print("set: ", yenData[index - 1])
 
 			# 追加するデータがあるなら追加する
 			if n != 0:
@@ -203,10 +203,10 @@ class Server(threading.Thread):
 					n = yens.shape[0] + n - maxDataCount
 					yens = yens[n:]
 					mins = mins[n:]
-				appendYens = yenData[index : count]
-				s.fxYenData = np.append(yens, candle.encodeArray(appendYens))
-				s.fxMinData = np.append(mins, minData[index : count])
-				print("append: ", appendYens)
+				appendYens = yenData[index:]
+				s.fxYenData = np.append(yens, appendYens)
+				s.fxMinData = np.append(mins, minData[index:])
+				#print("append: ", appendYens)
 
 				if s.fxYenDataTrain is None:
 					s.fxYenDataTrain = s.fxYenData
@@ -215,17 +215,19 @@ class Server(threading.Thread):
 			return 1
 		elif cmdType == 4:
 			# 現在受け取ってるドル円データで未来を予測する
-			data = s.prediction()
+			data = s.mk.fxPrediction()
 			conn.send(data)
 			return 1
 		elif cmdType == 5:
 			# 予測値の合成係数の取得
-			if size < 8:
-				conn.send(np.asarray(0, dtype=np.int32))
-				return 0
-			k = float(pkt[ipkt : ipkt + 8].view(dtype=np.float64))
-			s.initAveYenKs(k)
-			print(k)
+			#if size < 8:
+			#	conn.send(np.asarray(0, dtype=np.int32))
+			#	return 0
+			#k = float(pkt[ipkt : ipkt + 8].view(dtype=np.float64))
+			#s.initAveYenKs(k)
+			#print(k)
+			#conn.send(np.asarray(1, dtype=np.int32))
+			#return 1
 			conn.send(np.asarray(1, dtype=np.int32))
 			return 1
 

@@ -9,8 +9,6 @@ import numpy as np
 from numba import jit
 import chainer
 import matplotlib.pyplot as plt
-import win32api
-import win32con
 import chainer.functions as F
 import ini
 import fxreader
@@ -76,7 +74,9 @@ def init(iniFileName):
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
 	s.n_in = s.frameSize # ニューラルネットの入力次元数
 	s.n_out = clsNum * 2 + 1 # ニューラルネットの出力次元数
-	s.retLen = s.n_out # クライアントに返す結果データ長
+	s.fxRetLen = 1 # クライアントに返す結果データ長
+	s.fxInitialYenDataLen = s.frameSize # 初期化時にMT4から送る必要がある円データ数
+
 
 def initGraph():
 	global subPlot1
@@ -101,27 +101,33 @@ def initGraph():
 		plt.grid() # グリッド表示
 		plt.gcf().canvas.set_window_title(s.testFileName)
 
+		# 窓は２枠
 		subPlot1 = fig.add_subplot(2, 1, 1)
 		subPlot2 = fig.add_subplot(2, 1, 2)
-		subPlot1.set_xlim([0, s.minEvalLen])
 		subPlot2.set_xlim([-clsNum, clsNum])
-
-		subPlot1.axvline(x=s.frameSize, color='black')
 		subPlot2.axhline(y=0, color='black')
 
-		gxIn = np.arange(0, s.minEvalLen, 1)
-		gyIn = np.zeros(s.minEvalLen)
 		gxOut = np.arange(-clsNum, clsNum + 1, 1)
 		gyOut = np.zeros(s.n_out)
+
+		if s.mode == "server":
+			subPlot1.set_xlim([0, s.minPredLen])
+			gxIn = np.arange(0, s.minPredLen, 1)
+			gyIn = np.zeros(s.minPredLen)
+		else:
+			subPlot1.set_xlim([0, s.minEvalLen])
+			subPlot1.axvline(x=s.frameSize, color='black')
+			gxIn = np.arange(0, s.minEvalLen, 1)
+			gyIn = np.zeros(s.minEvalLen)
+			glTeach, = subPlot2.plot(gxOut, gyOut, label="trg")
+			glTeachV = subPlot2.axvline(x=0, color='green')
 
 		glIn, = subPlot1.plot(gxIn, gyIn, label="in")
 		glOut, = subPlot2.plot(gxOut, gyOut, label="out")
 		glOutV = subPlot2.axvline(x=0, color='gray')
-		glTeach, = subPlot2.plot(gxOut, gyOut, label="trg")
-		glTeachV = subPlot2.axvline(x=0, color='green')
+		
 		if s.mode == "testhr":
 			glErr, = subPlot2.plot(gxOut, gyOut, label="err", color='red')
-		print(glTeachV)
 
 def getTestFileName(testFileName):
 	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan)
@@ -146,7 +152,7 @@ def getTrainData(dataset, i):
 		i = clsNum
 	i += clsNum
 
-	# フレーム内の最低値を0になるようシフトする
+	# フレーム内の平均値を0になるようシフトする
 	x = x - np.average(x)
 
 	return s.xp.asarray([x], dtype=np.float32), s.xp.asarray([i], dtype=np.int32)
@@ -178,8 +184,8 @@ def trainBatch(dataset, itr):
 		now = time.time()
 		perp = evaluate(dataset, s.evalIndex)
 		print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
-		if 1 <= itr and s.optm == "Adam":
-			print('learning rate =', s.dnn.optimizer.lr)
+		#if 1 <= itr and s.optm == "Adam":
+		#	print('learning rate =', s.dnn.optimizer.lr)
 
 	return loss
 
@@ -321,3 +327,43 @@ def testhr():
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF
 		plt.show()
+
+@jit
+def fxGetData(dataset):
+	"""予測元データ取得"""
+	# フレーム取得
+	x = dataset[-s.frameSize:]
+	# フレーム内の平均値を0になるようシフトする
+	x = x - np.average(x)
+	return s.xp.asarray([x], dtype=np.float32)
+
+#@jit
+def fxPrediction():
+	"""現在の円データから予測する"""
+
+	# モデル取得
+	pred = s.dnn.model
+	pred.train = False
+	# 予測元データ取得
+	x = fxGetData(s.fxYenData)
+	# ニューラルネットを通す
+	y = pred(chainer.Variable(x, volatile='on'))
+	yvals = np.asarray(y.data[0].tolist(), dtype=np.float32)
+	ox = y.data.argmax(1)[0]
+	ret = float(clsSpan * (ox - clsNum) / clsNum)
+	#print(ret)
+
+	# 必要ならグラフ表示を行う
+	if s.grEnable:
+		# グラフにデータを描画する
+		xvals = s.fxYenData[-s.frameSize:]
+		glIn.set_ydata(xvals)
+		glOut.set_ydata(yvals)
+		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
+
+		subPlot1.set_ylim(f.npMaxMin(xvals))
+		subPlot2.set_ylim(f.npMaxMin(yvals))
+		plt.draw()
+		plt.pause(0.001)
+
+	return np.asarray(ret, dtype=np.float32)
