@@ -5,6 +5,32 @@ import numpy as np
 from numba import jit
 import mk_clas as c
 
+class NNNNNN(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_midunits),
+			l5=L.Linear(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(self, x):
+		return self.l6(F.relu(self.l5(F.relu(self.l4(F.relu(self.l3(F.relu(self.l2(F.relu(self.l1(x)))))))))))
+
+	def getModelKind(self):
+		return "clas"
+
 class NNNNN(chainer.Chain):
 	def __init__(self):
 		pass

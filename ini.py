@@ -26,3 +26,13 @@ class file(object):
 	def set(self, key, value):
 		"""INIファイル指定キーへ値を設定"""
 		return w32a.WriteProfileVal(self.section, key, str(value), self.iniFile)
+
+	def getSection(self, section):
+		return w32a.GetProfileSection(section, self.iniFile)
+
+	def setSection(self, section, list):
+		sl = []
+		for i in list:
+			sl.append(i + "\0")
+		sl.append("\0")
+		return w32a.WriteProfileSection(section, "".join(sl), self.iniFile)
