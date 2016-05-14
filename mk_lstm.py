@@ -486,8 +486,11 @@ def testhr():
 	result = 100.0 * hitcount / count
 	print("result: ", result, "%")
 
-	testFileIni = ini.file(s.testFileName + ".ini", f.getTestHrFileBase() + str(s.curEpoch))
+	section = s.trainDataFile
+	testFileIni = ini.file(s.testFileName + ".ini", section)
 	testFileIni.set("hitRate" + str(s.curEpoch), result)
+	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSection("DEFAULT"))
+	testFileIni.setSection(section + "_LSTM" + str(s.curEpoch), s.configIni.getSection("LSTM"))
 
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF

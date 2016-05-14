@@ -57,7 +57,6 @@ def npMaxMin(arrays):
 def getTestHrFileBase():
 	return s.testFileName + "_" + s.trainDataFile + "_testhr_"
 
-
 def readTestHrGraphBase(filename):
 	"""指定された的中率テスト結果CSVを読み込む
 	Args:
@@ -152,6 +151,10 @@ def trainFlowControl():
 		s.forceEval = True
 	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD9) & 0x8000) != 0:
 		s.evalIndex = s.batchRangeEnd
+		s.forceEval = True
+
+	# 評価強制
+	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD8) & 0x8000) != 0:
 		s.forceEval = True
 
 	# 終了判定処理

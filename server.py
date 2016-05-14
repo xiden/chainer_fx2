@@ -129,7 +129,7 @@ class Server(threading.Thread):
 		#s.trainFxYen()
 		pass
 
-	#@jit
+	@jit
 	def procFunc(self, conn):
 		# 命令パケット受け取り
 		pkt = recvPacket(conn, self.buf)

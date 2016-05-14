@@ -6,6 +6,7 @@ import math
 import csv
 import codecs
 import numpy as np
+import scipy.stats as st
 from numba import jit
 import chainer
 import chainer.cuda as cuda
@@ -19,6 +20,9 @@ import funcs as f
 clsNum = 0 # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 clsSpan = 0 # クラス分け方でのスパン(pips)
 dropoutRatio = 0.5 # ドロップアウト率
+fxRetMaSize = 0 # クライアントへ返す第二値の移動平均サイズ
+fxRetMaSig = 0 # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
+fxRetMaSizeK = None
 
 subPlot1 = None
 subPlot2 = None
@@ -67,19 +71,29 @@ def init(iniFileName):
 	global clsNum
 	global clsSpan
 	global dropoutRatio
+	global fxRetMaSize
+	global fxRetMaSig
+	global fxRetMaSizeK
 
 	configIni = ini.file(iniFileName, "CLAS")
 	clsNum = configIni.getInt("clsNum", "3") # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 	clsSpan = configIni.getFloat("clsSpan", "3") # クラス分け方でのスパン(pips)
 	dropoutRatio = configIni.getFloat("dropoutRatio", "0.5") # ドロップアウト率
+	fxRetMaSize = configIni.getInt("fxRetMaSize", "5") # クライアントへ返す第二値の移動平均サイズ
+	fxRetMaSig = configIni.getInt("fxRetMaSig", "3") # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
+
+	# 移動平均（ガウシアン）のカーネル計算
+	fxRetMaSize = (fxRetMaSize // 2) * 2 + 1
+	interval = fxRetMaSig + (fxRetMaSig + 0.5) / fxRetMaSize
+	fxRetMaSizeK = np.diff(st.norm.cdf(np.linspace(-interval, interval, fxRetMaSize + 1)))
+	fxRetMaSizeK /= fxRetMaSizeK.sum()
 
 	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
 	s.n_in = s.frameSize # ニューラルネットの入力次元数
 	s.n_out = clsNum * 2 + 1 # ニューラルネットの出力次元数
-	s.fxRetLen = 1 # クライアントに返す結果データ長
+	s.fxRetLen = 2 # クライアントに返す結果データ長
 	s.fxInitialYenDataLen = s.frameSize # 初期化時にMT4から送る必要がある円データ数
-
 
 def initGraph():
 	global subPlot1
@@ -223,8 +237,6 @@ def evaluate(dataset, index):
 		xvals = cuda.to_cpu(dataset[index : index + s.minEvalLen])
 		tx = int(t.data[0])
 		ox = y.data.argmax(1)[0]
-		tvals = np.zeros(s.n_out, dtype=np.float32)
-		tvals[tx] = 1.0
 		yvals = np.asarray(y.data[0].tolist(), dtype=np.float32)
 		glIn.set_ydata(xvals)
 		glTeachV.set_xdata([gxOut[tx], gxOut[tx]])
@@ -232,7 +244,7 @@ def evaluate(dataset, index):
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
 		subPlot1.set_ylim(f.npMaxMin(xvals))
-		subPlot2.set_ylim(f.npMaxMin([tvals, yvals]))
+		subPlot2.set_ylim(f.npMaxMin(yvals))
 		plt.draw()
 		plt.pause(0.001)
 
@@ -338,8 +350,11 @@ def testhr():
 	result = 100.0 * hitcount / testLen
 	print("result: ", result, "%")
 
-	testFileIni = ini.file(s.testFileName + ".ini", f.getTestHrFileBase() + str(s.curEpoch))
+	section = s.trainDataFile
+	testFileIni = ini.file(s.testFileName + ".ini", section)
 	testFileIni.set("hitRate" + str(s.curEpoch), result)
+	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSection("DEFAULT"))
+	testFileIni.setSection(section + "_CLAS" + str(s.curEpoch), s.configIni.getSection("CLAS"))
 
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF
@@ -365,8 +380,6 @@ def fxPrediction():
 	y = pred(chainer.Variable(fxGetData(s.fxYenData), volatile='on'))
 	yvals = np.asarray(y.data[0].tolist(), dtype=np.float32)
 	ox = y.data.argmax(1)[0]
-	ret = float(clsSpan * (ox - clsNum) / clsNum)
-	#print(ret)
 
 	# 必要ならグラフ表示を行う
 	if s.grEnable:
@@ -381,4 +394,7 @@ def fxPrediction():
 		plt.draw()
 		plt.pause(0.001)
 
-	return np.asarray(ret, dtype=np.float32)
+	# 戻り値配列作成
+	deltaPips = float(clsSpan * (ox - clsNum) / clsNum)
+	ma = np.asarray(np.convolve(np.asarray(s.fxYenData[-fxRetMaSize - 1:]), fxRetMaSizeK, 'valid'), dtype=np.float32)
+	return np.asarray([deltaPips, (ma[1] - ma[0]) * 100.0], dtype=np.float32)
