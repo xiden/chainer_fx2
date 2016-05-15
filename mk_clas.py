@@ -151,31 +151,35 @@ def getTestFileName(testFileName):
 #@jit
 def trainGetDataAndT(dataset, i):
 	"""学習データと教師データ取得"""
-	# フレーム取得
-	x = dataset[i : i + s.frameSize]
+	frameEnd = i + s.frameSize
+
 	# 教師値取得
 	if s.predAve:
-		t = (dataset[i + s.frameSize : i + s.frameSize + s.predLen] * s.predMeanK).sum()
+		t = (dataset[frameEnd : frameEnd + s.predLen] * s.predMeanK).sum()
 	else:
-		t = dataset[i + s.frameSize + s.predLen - 1]
-	# フレームの最終値から教師値への変化量を教師ベクトルにする
-	i = int(round(100.0 * float(t - x[-1]) * clsNum / clsSpan, 0))
-	if i < -clsNum:
-		i = -clsNum
-	elif clsNum < i:
-		i = clsNum
-	i += clsNum
-	# フレーム内の平均値を0になるようシフトする
-	x = x - (x.sum() / s.frameSize)
-	return x, i
+		t = dataset[frameEnd + s.predLen - 1]
+	t = int(round(100.0 * float(t - dataset[frameEnd - 1]) * clsNum / clsSpan, 0))
+	if t < -clsNum:
+		t = -clsNum
+	elif clsNum < t:
+		t = clsNum
+	t += clsNum
+
+	# フレーム取得
+	# フレーム内の平均値または中央値が0になるようシフトする
+	x = dataset[i : frameEnd]
+	x = x - np.median(x)
+	#x = x - (x.sum() / s.frameSize)
+	return x, t
 
 #@jit
 def trainGetData(dataset, i):
 	"""学習データのみ取得"""
 	# フレーム取得
+	# フレーム内の平均値または中央値が0になるようシフトする
 	x = dataset[i : i + s.frameSize]
-	# フレーム内の平均値を0になるようシフトする
-	x = x - (x.sum() / s.frameSize)
+	x = x - np.median(x)
+	#x = x - (x.sum() / s.frameSize)
 	return x
 
 #@jit

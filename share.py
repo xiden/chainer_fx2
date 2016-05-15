@@ -155,7 +155,8 @@ if mode != "testhr_g":
 		print("Unknown optimizer: ", optm)
 		sys.exit()
 	dnn.optimizer.setup(dnn.model)
-	dnn.optimizer.add_hook(chainer.optimizer.GradientClipping(gradClip))
+	if gradClip != 0.0:
+		dnn.optimizer.add_hook(chainer.optimizer.GradientClipping(gradClip))
 
 	# モデルとオプティマイザをロード
 	loadModelAndOptimizer()
