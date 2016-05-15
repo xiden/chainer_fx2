@@ -28,9 +28,15 @@ class file(object):
 		return w32a.WriteProfileVal(self.section, key, str(value), self.iniFile)
 
 	def getSection(self, section):
+		"""INIファイル指定セクション内容をすべて取得"""
 		return w32a.GetProfileSection(section, self.iniFile)
 
+	def getSectionCommentRemove(self, section):
+		"""INIファイル指定セクション内コメント以外をすべて取得"""
+		return [s for s in w32a.GetProfileSection(section, self.iniFile) if len(s) != 0 and s[0] != "#"]
+
 	def setSection(self, section, list):
+		"""INIファイル指定セクション内容を設定"""
 		sl = []
 		for i in list:
 			sl.append(i + "\0")

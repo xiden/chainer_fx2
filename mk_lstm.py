@@ -489,8 +489,8 @@ def testhr():
 	section = s.trainDataFile
 	testFileIni = ini.file(s.testFileName + ".ini", section)
 	testFileIni.set("hitRate" + str(s.curEpoch), result)
-	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSection("DEFAULT"))
-	testFileIni.setSection(section + "_LSTM" + str(s.curEpoch), s.configIni.getSection("LSTM"))
+	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSectionCommentRemove("DEFAULT"))
+	testFileIni.setSection(section + "_LSTM" + str(s.curEpoch), s.configIni.getSectionCommentRemove("LSTM"))
 
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF

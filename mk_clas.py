@@ -248,7 +248,11 @@ def evaluate(dataset, index):
 		plt.draw()
 		plt.pause(0.001)
 
-	return math.exp(float(loss.data))
+	try:
+		return math.exp(float(loss.data))
+	except Exception as e:
+		print("evaluate overflow")
+		return 0.0
 
 def writeTestHrCsv(xvals, tvals, yvals):
 	"""テスト結果CSVファイルに書き込む"""
@@ -353,8 +357,8 @@ def testhr():
 	section = s.trainDataFile
 	testFileIni = ini.file(s.testFileName + ".ini", section)
 	testFileIni.set("hitRate" + str(s.curEpoch), result)
-	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSection("DEFAULT"))
-	testFileIni.setSection(section + "_CLAS" + str(s.curEpoch), s.configIni.getSection("CLAS"))
+	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSectionCommentRemove("DEFAULT"))
+	testFileIni.setSection(section + "_CLAS" + str(s.curEpoch), s.configIni.getSectionCommentRemove("CLAS"))
 
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF
