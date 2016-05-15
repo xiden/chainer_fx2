@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import win32api
 import win32con
 import chainer.functions as F
+import os.path as path
 import ini
 import fxreader
 import share as s
@@ -454,7 +455,8 @@ def testhr():
 						tvals = decodeArray(tvals)
 						yvals = decodeArray(yvals)
 						# CSVファイルに吐き出す
-						with codecs.open(f.getTestHrFileBase() + str(s.curEpoch) + ".csv", 'w', "shift_jis") as file:
+						fname = path.join(s.resultDir, f.getTestHrFileBase() + str(s.curEpoch) + ".csv")
+						with codecs.open(fname, 'w', "shift_jis") as file:
 							writer = csv.writer(file)
 							for i in range(ivals.shape[0]):
 								writer.writerow([ivals[i], tvals[i], yvals[i]])
@@ -487,7 +489,7 @@ def testhr():
 	print("result: ", result, "%")
 
 	section = s.trainDataFile
-	testFileIni = ini.file(s.testFileName + ".ini", section)
+	testFileIni = ini.file(s.testFilePath + ".ini", section)
 	testFileIni.set("hitRate" + str(s.curEpoch), result)
 	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSectionCommentRemove("DEFAULT"))
 	testFileIni.setSection(section + "_LSTM" + str(s.curEpoch), s.configIni.getSectionCommentRemove("LSTM"))

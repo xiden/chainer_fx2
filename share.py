@@ -15,6 +15,7 @@ from chainer import cuda
 from chainer import optimizers
 from chainer import serializers
 import net
+import os
 import os.path as path
 from pathlib import Path
 import threading
@@ -45,12 +46,17 @@ def saveModelAndOptimizer():
 # コマンドライン引数解析
 parser = argparse.ArgumentParser()
 parser.add_argument('iniFileName', help='設定ファイル')
+parser.add_argument('--mode', '-m', default='', help='実行モードオーバーライド')
+
 args = parser.parse_args()
+configFileName = path.join("Configs", args.iniFileName)
 
 # 指定されたINIファイルからパラメータ取得
-configIni = ini.file(args.iniFileName, "DEFAULT")
+configIni = ini.file(configFileName, "DEFAULT")
 
 mode = configIni.getStr("mode", "train") # 実行モード
+if len(args.mode) != 0:
+	mode = args.mode # 実行モードオーバーライド
 trainDataFile = configIni.getStr("trainDataFile", "") # 学習データファイル
 trainDataDummy = configIni.getStr("trainDataDummy", "") # 生成したダミーデータを学習データするするかどうか、 sin/sweep
 gpu = configIni.getInt("gpu", "-1") # 使用GPU番号、0以上ならGPU使用
@@ -100,6 +106,15 @@ batchOffsetInitial = 0 # 学習時バッチ処理の初期オフセット
 batchOffset = 0 # 学習時バッチ処理の現在オフセット
 n_in = 0 # ニューラルネットの入力次元数
 n_out = 0 # ニューラルネットの出力次元数
+resultRootDir = "Results" # プロジェクト結果保存用ルートディレクトリ名
+resultDir, configExt = path.splitext(path.basename(configFileName))
+resultDir = path.join(resultRootDir, resultDir) # プロジェクト結果保存用ディレクトリ名
+
+# プロジェクト結果保存用ディレクトリ無ければ作成
+if not path.isdir(resultRootDir):
+	os.mkdir(resultRootDir)
+if not path.isdir(resultDir):
+	os.mkdir(resultDir)
 
 # ネットワークモデルの種類により大域的に変わる処理の初期化を行う
 netClassDef = getattr(net, netType)
@@ -112,7 +127,7 @@ else:
 	print("Unknown model kind", model.getModelKind())
 	sys.exit()
 dnn = mk.Dnn()
-mk.init(args.iniFileName)
+mk.init(configFileName)
 
 # GPU使うならそれ用の数値処理ライブラリ取得
 xp = cuda.cupy if gpu >= 0 else np
@@ -122,13 +137,14 @@ xp = cuda.cupy if gpu >= 0 else np
 # これはモデルファイル名に付与される
 batchName = "btch" + str(batchSize) + ("rnd" if batchRandom else "")
 predName = ("pa" if predAve else "p") + str(predLen)
-testFileName = path.splitext(path.basename(args.iniFileName))[0] + "_" + str(netType) + "_" + optm + "_" + batchName + "_u" + str(numUnits) + "f" + str(frameSize) + predName
+testFileName = path.splitext(path.basename(configFileName))[0] + "_" + str(netType) + "_" + optm + "_" + batchName + "_u" + str(numUnits) + "f" + str(frameSize) + predName
 testFileName = mk.getTestFileName(testFileName)
+testFilePath = path.join(resultDir, testFileName)
 if trainDataDummy:
 	testFileName += "_" + trainDataDummy
-modelFile = testFileName + ".model"
-stateFile = testFileName + ".state"
-testFileIni = ini.file(testFileName + ".ini", "DEFAULT")
+modelFile = testFilePath + ".model"
+stateFile = testFilePath + ".state"
+testFileIni = ini.file(testFilePath + ".ini", "DEFAULT")
 curEpoch = testFileIni.getInt("curEpoch", 0) # 現在の実施済みエポック数取得
 
 if mode != "testhr_g":

@@ -55,6 +55,7 @@ def npMaxMin(arrays):
 
 
 def getTestHrFileBase():
+	"""的中率計測結果ファイル名のベース名"""
 	return s.testFileName + "_" + s.trainDataFile + "_testhr_"
 
 def readTestHrGraphBase(filename):
@@ -89,7 +90,7 @@ def readTestHrGraphY(filename):
 
 def testhr_g():
 	baseName = getTestHrFileBase()
-	p = Path(".")
+	p = Path(s.resultDir)
 	l = list(p.glob(baseName + "*.csv"))
 	i = len(baseName)
 	epochs = []
@@ -100,7 +101,7 @@ def testhr_g():
 	epochs.sort()
 	count = 1
 	for epoch in epochs:
-		csvFile = baseName + str(epoch) + ".csv"
+		csvFile = path.join(s.resultDir, baseName + str(epoch) + ".csv")
 
 		if count == 1:
 			xvals, tvals, yvals = readTestHrGraphBase(csvFile)

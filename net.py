@@ -5,7 +5,33 @@ import numpy as np
 from numba import jit
 import mk_clas as c
 
-class NNNNNN(chainer.Chain):
+class N6ls(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_midunits),
+			l5=L.Linear(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(self, x):
+		return F.log_softmax(self.l6(F.relu(self.l5(F.relu(self.l4(F.relu(self.l3(F.relu(self.l2(F.relu(self.l1(x))))))))))))
+
+	def getModelKind(self):
+		return "clas"
+
+class N6(chainer.Chain):
 	def __init__(self):
 		pass
 
@@ -31,6 +57,32 @@ class NNNNNN(chainer.Chain):
 	def getModelKind(self):
 		return "clas"
 
+class NNNNNN(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_midunits),
+			l5=L.Linear(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(self, x):
+		return F.log_softmax(self.l6(F.relu(self.l5(F.relu(self.l4(F.relu(self.l3(F.relu(self.l2(F.relu(self.l1(x))))))))))))
+
+	def getModelKind(self):
+		return "clas"
+
 class NNNNN(chainer.Chain):
 	def __init__(self):
 		pass
@@ -51,12 +103,77 @@ class NNNNN(chainer.Chain):
 
 	#@jit
 	def __call__(self, x):
-		h1 = self.l1(x)
-		h2 = self.l2(F.relu(h1))
-		h3 = self.l3(F.relu(h2))
-		h4 = self.l4(F.relu(h3))
-		y = self.l5(F.relu(h4))
-		return y
+		return F.log_softmax(F.relu(self.l5(F.relu(self.l4(F.relu(self.l3(F.relu(self.l2(F.relu(self.l1(x)))))))))))
+
+	def getModelKind(self):
+		return "clas"
+
+class NNNN(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(self, x):
+		return F.log_softmax(F.relu(self.l4(F.relu(self.l3(F.relu(self.l2(F.relu(self.l1(x)))))))))
+
+	def getModelKind(self):
+		return "clas"
+
+class NNN1sm(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(m, x):
+		return F.log_softmax(m.l3(F.relu(m.l2(F.relu(m.l1(x))))))
+
+	def getModelKind(self):
+		return "clas"
+
+class NNN2sm(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(m, x):
+		return F.log_softmax(F.relu(m.l3(F.relu(m.l2(F.relu(m.l1(x)))))))
 
 	def getModelKind(self):
 		return "clas"
