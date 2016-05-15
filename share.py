@@ -47,6 +47,8 @@ def saveModelAndOptimizer():
 parser = argparse.ArgumentParser()
 parser.add_argument('iniFileName', help='設定ファイル')
 parser.add_argument('--mode', '-m', default='', help='実行モードオーバーライド')
+parser.add_argument('--grEnable', '-gr', default='', help='グラフ表示有効かどうか')
+parser.add_argument('--epoch', '-e', default='', help='目標エポック数')
 
 args = parser.parse_args()
 configFileName = path.join("Configs", args.iniFileName)
@@ -63,6 +65,9 @@ gpu = configIni.getInt("gpu", "-1") # 使用GPU番号、0以上ならGPU使用
 netType = configIni.getStr("netType", "") # ニューラルネットワークモデルタイプ
 netInitParamRandom = configIni.getFloat("netInitParamRandom", "0.0") # ニューラルネットワーク重み初期化乱数サイズ
 epoch = configIni.getInt("epoch", "1000") # 実行エポック数
+if len(args.epoch) != 0:
+	epoch = int(args.epoch) # エポック数オーバーライド
+	configIni.set("epoch", epoch)
 numUnits = configIni.getInt("numUnits", "60") # ユニット数
 inMA = configIni.getInt("inMA", "5") # 入力値の移動平均サイズ
 frameSize = configIni.getInt("frameSize", "300") # 入力フレームサイズ
@@ -70,6 +75,8 @@ batchSize = configIni.getInt("batchSize", "20") # バッチ数
 batchRandom = configIni.getInt("batchRandom", "1") # バッチ位置をランダムにするかどうか
 gradClip = configIni.getFloat("gradClip", "5") # 勾配クリップ
 grEnable = configIni.getInt("grEnable", "0") # グラフ表示有効かどうか
+if len(args.grEnable) != 0:
+	grEnable = int(args.grEnable) # グラフ表示オーバーライド
 evalInterval = configIni.getInt("evalInterval", "20") # 評価（グラフも）間隔エポック数
 itrCountInterval = configIni.getInt("itrCountInterval", "10") # イタレーション速度計測間隔
 predLen = configIni.getInt("predLen", "1") # 未来予測のサンプル数
@@ -107,8 +114,7 @@ batchOffset = 0 # 学習時バッチ処理の現在オフセット
 n_in = 0 # ニューラルネットの入力次元数
 n_out = 0 # ニューラルネットの出力次元数
 resultRootDir = "Results" # プロジェクト結果保存用ルートディレクトリ名
-resultDir, configExt = path.splitext(path.basename(configFileName))
-resultDir = path.join(resultRootDir, resultDir) # プロジェクト結果保存用ディレクトリ名
+resultDir = path.join(resultRootDir, path.splitext(path.basename(configFileName))[0]) # プロジェクト結果保存用ディレクトリ名
 
 # プロジェクト結果保存用ディレクトリ無ければ作成
 if not path.isdir(resultRootDir):
@@ -137,7 +143,7 @@ xp = cuda.cupy if gpu >= 0 else np
 # これはモデルファイル名に付与される
 batchName = "btch" + str(batchSize) + ("rnd" if batchRandom else "")
 predName = ("pa" if predAve else "p") + str(predLen)
-testFileName = path.splitext(path.basename(configFileName))[0] + "_" + str(netType) + "_" + optm + "_" + batchName + "_u" + str(numUnits) + "f" + str(frameSize) + predName
+testFileName = str(netType) + "_" + optm + "_" + batchName + "_u" + str(numUnits) + "f" + str(frameSize) + predName
 testFileName = mk.getTestFileName(testFileName)
 testFilePath = path.join(resultDir, testFileName)
 if trainDataDummy:

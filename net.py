@@ -5,6 +5,87 @@ import numpy as np
 from numba import jit
 import mk_clas as c
 
+class N7relu7ls(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_midunits),
+			l5=L.Linear(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_midunits),
+			l7=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(m, x):
+		return F.log_softmax(F.relu(m.l7(F.relu(m.l6(F.relu(m.l5(F.relu(m.l4(F.relu(m.l3(F.relu(m.l2(F.relu(m.l1(x)))))))))))))))
+
+	def getModelKind(self):
+		return "clas"
+
+class N7ls(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_midunits),
+			l5=L.Linear(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_midunits),
+			l7=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(m, x):
+		return F.log_softmax(m.l7(F.relu(m.l6(F.relu(m.l5(F.relu(m.l4(F.relu(m.l3(F.relu(m.l2(F.relu(m.l1(x))))))))))))))
+
+	def getModelKind(self):
+		return "clas"
+
+class N7relu0ls(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_midunits),
+			l5=L.Linear(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_midunits),
+			l7=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(m, x):
+		return F.log_softmax(m.l7(m.l6(m.l5(m.l4(m.l3(m.l2(m.l1(x))))))))
+
+	def getModelKind(self):
+		return "clas"
+
 class N6ls(chainer.Chain):
 	def __init__(self):
 		pass
@@ -25,8 +106,8 @@ class N6ls(chainer.Chain):
 		pass
 
 	#@jit
-	def __call__(self, x):
-		return F.log_softmax(self.l6(F.relu(self.l5(F.relu(self.l4(F.relu(self.l3(F.relu(self.l2(F.relu(self.l1(x))))))))))))
+	def __call__(m, x):
+		return F.log_softmax(m.l6(F.relu(m.l5(F.relu(m.l4(F.relu(m.l3(F.relu(m.l2(F.relu(m.l1(x))))))))))))
 
 	def getModelKind(self):
 		return "clas"
@@ -51,8 +132,8 @@ class N6(chainer.Chain):
 		pass
 
 	#@jit
-	def __call__(self, x):
-		return self.l6(F.relu(self.l5(F.relu(self.l4(F.relu(self.l3(F.relu(self.l2(F.relu(self.l1(x)))))))))))
+	def __call__(m, x):
+		return m.l6(F.relu(m.l5(F.relu(m.l4(F.relu(m.l3(F.relu(m.l2(F.relu(m.l1(x)))))))))))
 
 	def getModelKind(self):
 		return "clas"
