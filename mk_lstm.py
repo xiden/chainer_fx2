@@ -266,7 +266,7 @@ def trainBatch(dataset, itr):
 		if (i == 0 and itr % s.evalInterval == 0) or s.forceEval:
 			print('evaluate')
 			now = time.time()
-			perp = evaluate(dataset, s.evalIndex, onlyAveDYVals)
+			perp = trainEvaluate(dataset, s.evalIndex, onlyAveDYVals)
 			print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
 			#if 1 <= itr and s.optm == "Adam":
 			#	print('learning rate =', s.dnn.optimizer.lr)
@@ -274,7 +274,7 @@ def trainBatch(dataset, itr):
 	return accumLoss
 
 #@jit
-def evaluate(dataset, index, onlyAveDYVals = False):
+def trainEvaluate(dataset, index, onlyAveDYVals = False):
 	"""現在のニューラルネットワーク評価処理"""
 
 	global fxLastD1YVals

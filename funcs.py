@@ -16,7 +16,7 @@ import share as s
 
 
 def trainInit(wholeLen):
-	"""指定された長さの学習データで必要変数を初期化する"""
+	"""指定された長さの学習データで学習に必要な変数を初期化する"""
 
 	s.batchRangeStart = 0
 	s.batchRangeEnd = wholeLen - s.minEvalLen
@@ -34,6 +34,16 @@ def trainInit(wholeLen):
 	s.requestQuit = False
 	s.quitNow = False
 	s.forceEval = False
+
+def serverTrainInit(wholeLen):
+	"""サーバー用に指定された長さの学習データで学習に必要な変数を初期化する"""
+
+	s.batchRangeEnd = wholeLen - s.minEvalLen
+	s.batchIndices = [0] * s.batchSize
+	for i in range(s.batchSize):
+		s.batchIndices[i] = s.batchSize * i
+	s.batchOffsetInitial = s.batchRangeEnd - s.batchIndices[-1]
+	s.batchOffset = s.batchOffsetInitial
 
 def snapShotPredictionModel():
 	"""学習中のモデルからドル円未来予測用のモデルを作成する"""

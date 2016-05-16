@@ -181,6 +181,8 @@ class Server(threading.Thread):
 			ipkt += 4 * count
 			minData = np.array(pkt[ipkt : ipkt + 4 * count].view(dtype=np.int32))
 
+			print(minData)
+
 			m = s.fxMinData[-1]
 			index = int(np.searchsorted(minData, int(m)))
 
@@ -196,11 +198,12 @@ class Server(threading.Thread):
 
 			# 追加するデータがあるなら追加する
 			if n != 0:
-				maxDataCount = 60 * 24
+				maxDataCount = 50000 * 2 # 1ヶ月分ほど蓄える
 				yens = s.fxYenData
 				mins = s.fxMinData
 				if maxDataCount < yens.shape[0] + n:
-					n = yens.shape[0] + n - maxDataCount
+					# 最大データ数超えたら半分にする
+					n = yens.shape[0] + n - maxDataCount // 2
 					yens = yens[n:]
 					mins = mins[n:]
 				appendYens = yenData[index:]

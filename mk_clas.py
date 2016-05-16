@@ -208,7 +208,7 @@ def trainBatch(dataset, itr):
 	if (itr % s.evalInterval == 0) or s.forceEval:
 		print('evaluate')
 		now = time.time()
-		perp = evaluate(dataset, s.evalIndex)
+		perp = trainEvaluate(dataset, s.evalIndex)
 		print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
 		#if 1 <= itr and s.optm == "Adam":
 		#	print('learning rate =', s.dnn.optimizer.lr)
@@ -216,7 +216,7 @@ def trainBatch(dataset, itr):
 	return loss
 
 #@jit
-def evaluate(dataset, index):
+def trainEvaluate(dataset, index):
 	"""現在のニューラルネットワーク評価処理"""
 
 	# モデルに影響を与えないようにコピーする
@@ -383,12 +383,30 @@ def fxGetData(dataset):
 def fxPrediction():
 	"""現在の円データから予測する"""
 
+	## 必要があるなら学習を行う
+	#if s.serverTrainCount != 0:
+	#	# 学習用変数初期化
+	#	f.serverTrainInit(s.fxYenData.shape[0])
+	#	s.dnn.model.train = True
+
+	#	# 指定回数分移動させながら学習させる
+	#	for i in range(s.serverTrainCount):
+	#		# バッチ位置初期化
+	#		s.batchStartIndices = np.asarray(s.batchIndices, dtype=np.integer)
+	#		s.batchStartIndices += s.batchOffset
+	#		# 学習実行
+	#		x, t = trainGetBatchs(s.fxYenData)
+	#		y, loss = s.dnn.forward(x, t, True)
+	#		# ニューラルネットワーク更新
+	#		s.dnn.update(loss)
+	#		s.batchOffset -= 1
+
 	# モデル取得
 	pred = s.dnn.model
 	pred.train = False
 	# 予測元データ取得してニューラルネットを通す
 	y = pred(chainer.Variable(fxGetData(s.fxYenData), volatile='on'))
-	yvals = np.asarray(y.data[0].tolist(), dtype=np.float32)
+	yvals = cuda.to_cpu(y.data[0]) # np.asarray(y.data[0].tolist(), dtype=np.float32)
 	ox = y.data.argmax(1)[0]
 
 	# 必要ならグラフ表示を行う
@@ -405,6 +423,9 @@ def fxPrediction():
 		plt.pause(0.001)
 
 	# 戻り値配列作成
+	# AI予測値
+	# 移動平均の差分値
+	# 移動平均の差分値の差分値
 	deltaPips = float(clsSpan * (ox - clsNum) / clsNum)
 	ma = np.asarray(np.convolve(np.asarray(s.fxYenData[-fxRetMaSize - 3:]), fxRetMaSizeK, 'valid'), dtype=np.float32)
 	diff1 = np.diff(ma)

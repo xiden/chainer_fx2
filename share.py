@@ -79,6 +79,7 @@ optm = configIni.getStr("optm", "Adam") # 勾配計算最適化オブジェク�
 adamAlpha = configIni.getFloat("adamAlpha", "0.001") # Adamアルゴリズムのα値
 adaDeltaRho = configIni.getFloat("adaDeltaRho", "0.95") # AdaDeltaアルゴリズムのrho値
 adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴリズムのeps値
+serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
 
 if len(args.mode) != 0: mode = args.mode # 実行モードオーバーライド
 if len(args.trainDataFile) != 0: trainDataFile = args.trainDataFile # 学習データファイルオーバーライド
