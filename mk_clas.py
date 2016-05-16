@@ -93,10 +93,10 @@ def init(iniFileName):
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
 	s.n_in = s.frameSize # ニューラルネットの入力次元数
 	s.n_out = clsNum * 2 + 1 # ニューラルネットの出力次元数
-	s.fxRetLen = 2 # クライアントに返す結果データ長
+	s.fxRetLen = 3 # クライアントに返す結果データ長
 	s.fxInitialYenDataLen = s.frameSize # 初期化時にMT4から送る必要がある円データ数
 
-def initGraph():
+def initGraph(windowCaption):
 	global subPlot1
 	global subPlot2
 	global gxIn
@@ -116,7 +116,7 @@ def initGraph():
 		plt.xlabel("min") # x軸ラベル
 		plt.ylabel("yen") # y軸ラベル
 		plt.grid() # グリッド表示
-		plt.gcf().canvas.set_window_title(s.testFileName)
+		plt.gcf().canvas.set_window_title(windowCaption)
 
 		# 窓は２枠
 		subPlot1 = fig.add_subplot(2, 1, 1)
@@ -406,5 +406,7 @@ def fxPrediction():
 
 	# 戻り値配列作成
 	deltaPips = float(clsSpan * (ox - clsNum) / clsNum)
-	ma = np.asarray(np.convolve(np.asarray(s.fxYenData[-fxRetMaSize - 1:]), fxRetMaSizeK, 'valid'), dtype=np.float32)
-	return np.asarray([deltaPips, (ma[1] - ma[0]) * 100.0], dtype=np.float32)
+	ma = np.asarray(np.convolve(np.asarray(s.fxYenData[-fxRetMaSize - 3:]), fxRetMaSizeK, 'valid'), dtype=np.float32)
+	diff1 = np.diff(ma)
+	diff2 = np.diff(diff1)
+	return np.asarray([deltaPips, diff1[-1] * 100.0, diff2[-1] * 100.0], dtype=np.float32)

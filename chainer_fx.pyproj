@@ -68,6 +68,7 @@
     <Content Include="Configs\semiLight.ini" />
     <Content Include="Configs\semiLightStep2.ini" />
     <Content Include="Configs\sin.ini" />
+    <Content Include="Configs\test6.ini" />
     <Content Include="Configs\test5.ini" />
     <Content Include="Configs\test4.ini" />
     <Content Include="Configs\test3.ini" />

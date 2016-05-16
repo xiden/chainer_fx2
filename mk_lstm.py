@@ -139,7 +139,7 @@ def init(iniFileName):
 	# 未来予測データの合成係数初期化
 	initAveYenKs(fxAveYenK)
 
-def initGraph():
+def initGraph(windowCaption):
 	global subPlot1
 	global subPlot2
 	global subPlot3
@@ -169,7 +169,7 @@ def initGraph():
 		plt.xlabel("min") # x軸ラベル
 		plt.ylabel("yen") # y軸ラベル
 		plt.grid() # グリッド表示
-		plt.gcf().canvas.set_window_title(s.testFileName)
+		plt.gcf().canvas.set_window_title(windowCaption)
 
 		subPlot1 = fig.add_subplot(3, 1, 1)
 		subPlot2 = fig.add_subplot(3, 1, 2)

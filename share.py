@@ -47,8 +47,9 @@ def saveModelAndOptimizer():
 parser = argparse.ArgumentParser()
 parser.add_argument('iniFileName', help='設定ファイル')
 parser.add_argument('--mode', '-m', default='', help='実行モードオーバーライド')
-parser.add_argument('--grEnable', '-gr', default='', help='グラフ表示有効かどうか')
-parser.add_argument('--epoch', '-e', default='', help='目標エポック数')
+parser.add_argument('--trainDataFile', '-tdf', default='', help='学習用ドル円CSVファイル')
+parser.add_argument('--grEnable', '-gr', default='', help='グラフ表示するなら1、それ以外は0')
+parser.add_argument('--epoch', '-e', default='', help='目標エポック数、INIファイルの方も書き換える')
 
 args = parser.parse_args()
 configFileName = path.join("Configs", args.iniFileName)
@@ -57,17 +58,12 @@ configFileName = path.join("Configs", args.iniFileName)
 configIni = ini.file(configFileName, "DEFAULT")
 
 mode = configIni.getStr("mode", "train") # 実行モード
-if len(args.mode) != 0:
-	mode = args.mode # 実行モードオーバーライド
 trainDataFile = configIni.getStr("trainDataFile", "") # 学習データファイル
 trainDataDummy = configIni.getStr("trainDataDummy", "") # 生成したダミーデータを学習データするするかどうか、 sin/sweep
 gpu = configIni.getInt("gpu", "-1") # 使用GPU番号、0以上ならGPU使用
 netType = configIni.getStr("netType", "") # ニューラルネットワークモデルタイプ
 netInitParamRandom = configIni.getFloat("netInitParamRandom", "0.0") # ニューラルネットワーク重み初期化乱数サイズ
 epoch = configIni.getInt("epoch", "1000") # 実行エポック数
-if len(args.epoch) != 0:
-	epoch = int(args.epoch) # エポック数オーバーライド
-	configIni.set("epoch", epoch)
 numUnits = configIni.getInt("numUnits", "60") # ユニット数
 inMA = configIni.getInt("inMA", "5") # 入力値の移動平均サイズ
 frameSize = configIni.getInt("frameSize", "300") # 入力フレームサイズ
@@ -75,8 +71,6 @@ batchSize = configIni.getInt("batchSize", "20") # バッチ数
 batchRandom = configIni.getInt("batchRandom", "1") # バッチ位置をランダムにするかどうか
 gradClip = configIni.getFloat("gradClip", "5") # 勾配クリップ
 grEnable = configIni.getInt("grEnable", "0") # グラフ表示有効かどうか
-if len(args.grEnable) != 0:
-	grEnable = int(args.grEnable) # グラフ表示オーバーライド
 evalInterval = configIni.getInt("evalInterval", "20") # 評価（グラフも）間隔エポック数
 itrCountInterval = configIni.getInt("itrCountInterval", "10") # イタレーション速度計測間隔
 predLen = configIni.getInt("predLen", "1") # 未来予測のサンプル数
@@ -85,6 +79,13 @@ optm = configIni.getStr("optm", "Adam") # 勾配計算最適化オブジェク�
 adamAlpha = configIni.getFloat("adamAlpha", "0.001") # Adamアルゴリズムのα値
 adaDeltaRho = configIni.getFloat("adaDeltaRho", "0.95") # AdaDeltaアルゴリズムのrho値
 adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴリズムのeps値
+
+if len(args.mode) != 0: mode = args.mode # 実行モードオーバーライド
+if len(args.trainDataFile) != 0: trainDataFile = args.trainDataFile # 学習データファイルオーバーライド
+if len(args.epoch) != 0:
+	epoch = int(args.epoch) # エポック数オーバーライド
+	configIni.set("epoch", epoch)
+if len(args.grEnable) != 0: grEnable = int(args.grEnable) # グラフ表示オーバーライド
 
 # その他グローバル変数初期化
 inMA = (inMA // 2) * 2 + 1 # 入力値移動平均サイズを奇数にする
@@ -155,7 +156,7 @@ curEpoch = testFileIni.getInt("curEpoch", 0) # 現在の実施済みエポック
 
 if mode != "testhr_g":
 	# モデル別のグラフ処理初期化
-	mk.initGraph()
+	mk.initGraph(testFileName + ": " + trainDataFile)
 
 	# ネットワークモデルの初期化
 	model.create(n_in, numUnits, n_out, gpu, True)
