@@ -111,11 +111,16 @@ FXDNN_API int __stdcall FxDnnGetInitiateInfo(int& minEvalLen, int& predictionLen
 	return 0;
 }
 
-FXDNN_API int __stdcall FxDnnInitialize(const float* pYenData, const int* pMinData) {
-	auto size = Pkt::HeaderSize + g_nMinEvalLen * 4 * 2;
+FXDNN_API int __stdcall FxDnnInitialize(const float* pOpenData, const float* pHighData, const float* pLowData, const float* pCloseData, const int* pMinData) {
+	auto size = Pkt::HeaderSize + g_nMinEvalLen * 4 * 5;
 	auto pPkt = GrowPktBuf(size);
-	memcpy(&pPkt->Data[0], pYenData, g_nMinEvalLen * 4);
-	memcpy(&pPkt->Data[g_nMinEvalLen * 4], pMinData, g_nMinEvalLen * 4);
+	auto copySize = g_nMinEvalLen * 4;
+	auto p = &pPkt->Data[0];
+	memcpy(p, pOpenData, copySize); p += copySize;
+	memcpy(p, pHighData, copySize); p += copySize;
+	memcpy(p, pLowData, copySize); p += copySize;
+	memcpy(p, pCloseData, copySize); p += copySize;
+	memcpy(p, pMinData, copySize); p += copySize;
 	pPkt->CmdId = Cmd::Initialize;
 	SendToSize(g_Sk, pPkt, size);
 
@@ -139,11 +144,16 @@ FXDNN_API void __stdcall FxDnnUninitialize() {
 	return;
 }
 
-FXDNN_API int __stdcall FxDnnSendFxData(int count, const float* pYenData, const int* pMinData) {
-	auto size = Pkt::HeaderSize + count * 4 * 2;
+FXDNN_API int __stdcall FxDnnSendFxData(int count, const float* pOpenData, const float* pHighData, const float* pLowData, const float* pCloseData, const int* pMinData) {
+	auto size = Pkt::HeaderSize + count * 4 * 5;
 	auto pPkt = GrowPktBuf(size);
-	memcpy(&pPkt->Data[0], pYenData, count * 4);
-	memcpy(&pPkt->Data[count * 4], pMinData, count * 4);
+	auto copySize = count * 4;
+	auto p = &pPkt->Data[0];
+	memcpy(p, pOpenData, copySize); p += copySize;
+	memcpy(p, pHighData, copySize); p += copySize;
+	memcpy(p, pLowData, copySize); p += copySize;
+	memcpy(p, pCloseData, copySize); p += copySize;
+	memcpy(p, pMinData, copySize); p += copySize;
 	pPkt->CmdId = Cmd::SendFxData;
 	SendToSize(g_Sk, pPkt, size);
 
@@ -157,12 +167,12 @@ FXDNN_API int __stdcall FxDnnSendFxData(int count, const float* pYenData, const 
 	return 0;
 }
 
-FXDNN_API int __stdcall FxDnnRecvPredictionData(float* pYenData) {
+FXDNN_API int __stdcall FxDnnRecvPredictionData(float* pPredictionData) {
 	Pkt pkt(Cmd::RecvPredictionData);
 	SendToSize(g_Sk, &pkt, Pkt::HeaderSize);
 
 	auto size = g_nPredictionLen * 4;
-	if (!RecvToSize(g_Sk, pYenData, size))
+	if (!RecvToSize(g_Sk, pPredictionData, size))
 		return -1;
 
 	return 0;

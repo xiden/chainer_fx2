@@ -66,14 +66,14 @@ netInitParamRandom = configIni.getFloat("netInitParamRandom", "0.0") # ニュー
 epoch = configIni.getInt("epoch", "1000") # 実行エポック数
 numUnits = configIni.getInt("numUnits", "60") # ユニット数
 inMA = configIni.getInt("inMA", "5") # 入力値の移動平均サイズ
-frameSize = configIni.getInt("frameSize", "300") # 入力フレームサイズ
+frameSize = configIni.getInt("frameSize", "300") # 入力分足数
 batchSize = configIni.getInt("batchSize", "20") # バッチ数
 batchRandom = configIni.getInt("batchRandom", "1") # バッチ位置をランダムにするかどうか
 gradClip = configIni.getFloat("gradClip", "5") # 勾配クリップ
 grEnable = configIni.getInt("grEnable", "0") # グラフ表示有効かどうか
 evalInterval = configIni.getInt("evalInterval", "20") # 評価（グラフも）間隔エポック数
 itrCountInterval = configIni.getInt("itrCountInterval", "10") # イタレーション速度計測間隔
-predLen = configIni.getInt("predLen", "1") # 未来予測のサンプル数
+predLen = configIni.getInt("predLen", "1") # 未来予測の分足数
 predAve = configIni.getInt("predAve", "1") # 未来予測分を平均化するかどうか
 optm = configIni.getStr("optm", "Adam") # 勾配計算最適化オブジェクトタイプ
 adamAlpha = configIni.getFloat("adamAlpha", "0.001") # Adamアルゴリズムのα値
@@ -94,12 +94,13 @@ predMeanK = np.ones(predLen) # 未来教師データの平均化係数
 #predictionMeanK = np.arange(1.0 / predLen, 1.0, 1.0 / (predLen + 1))
 #predictionMeanK *= predictionMeanK
 predMeanK = predMeanK / predMeanK.sum()
-minPredLen = 0 # ドル円未来予測に必要な最小データ数
-minEvalLen = 0 # 学習結果の評価に必要な最小データ数
-fxInitialYenDataLen = 0 # 初期化時にMT4から送る必要がある円データ数
-fxYenData = np.zeros(1, dtype=np.float32) # MT4から送られる円データ、添え字は fxMinData と同じ
-fxMinData = np.zeros(1, dtype=np.int32) # MT4から送られる分データ、添え字は fxYenData と同じ
-fxYenDataTrain = None # 学習用の円データ、学習したいデータが更新されたら None 以外になる
+predMeanK.reshape((predLen, 1))
+minPredLen = 0 # ドル円未来予測に必要な最小分足データ数、実際に必要なデータ数は4倍となる
+minEvalLen = 0 # 学習結果の評価に必要な最小分足データ数、実際に必要なデータ数は4倍となる
+fxRequiredYenDataLen = 0 # MT4から送る必要がある分足データ数、実際に必要なデータ数は4倍となる
+fxYenData = np.zeros(1, dtype=np.float32) # MT4から送られる分足データ、開始値、高値、低値、終値の繰り返し
+fxMinData = np.zeros(1, dtype=np.int32) # MT4から送られる分足時間データ、添え字は fxYenData の1/4
+fxYenDataTrain = None # 学習用の分足データ、学習したいデータが更新されたら None 以外になる
 fxYenPredictionModel = None # ドル円未来予測用のネットワークモデル
 fxRetLen = 0 # クライアントに返す結果データ長
 modelLock = threading.Lock() # model を排他処理するためのロック

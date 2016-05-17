@@ -3,6 +3,7 @@
 
 import sys
 import csv
+import codecs
 from numba import jit
 import numpy as np
 import chainer.cuda as cuda
@@ -15,11 +16,11 @@ import time
 import share as s
 
 
-def trainInit(wholeLen):
+def trainInit(dataset):
 	"""指定された長さの学習データで学習に必要な変数を初期化する"""
 
 	s.batchRangeStart = 0
-	s.batchRangeEnd = wholeLen - s.minEvalLen
+	s.batchRangeEnd = dataset.shape[0] - s.minEvalLen
 	if s.batchRangeEnd < 0:
 		print("Data length not enough")
 		sys.exit()
@@ -68,7 +69,15 @@ def getTestHrFileBase():
 	"""的中率計測結果ファイル名のベース名"""
 	return s.testFileName + "_" + s.trainDataFile + "_testhr_"
 
-def readTestHrGraphBase(filename):
+def writeTestHrCsv(xvals, tvals, yvals):
+	"""テスト結果CSVファイルに書き込む"""
+	fname = path.join(s.resultDir, getTestHrFileBase() + str(s.curEpoch) + ".csv")
+	with codecs.open(fname, 'w', "shift_jis") as file:
+		writer = csv.writer(file)
+		for i in range(tvals.shape[0]):
+			writer.writerow([xvals[0][i], xvals[1][i], xvals[2][i], xvals[3][i], tvals[i], yvals[i]])
+
+def readTestHrCsv(filename):
 	"""指定された的中率テスト結果CSVを読み込む
 	Args:
 		filename: 読み込むCSVファイル名.
@@ -76,14 +85,17 @@ def readTestHrGraphBase(filename):
 	with open(filename, "r") as f:
 		# 円データをそのまま使用する
 		dr = csv.reader(f)
-		idata = []
+		xdata = [[], [], [], []]
 		tdata = []
 		ydata = []
 		for row in dr:
-			idata.append(float(row[0]))
-			tdata.append(float(row[1]))
-			ydata.append(float(row[2]))
-	return np.asarray(idata, dtype=np.float32), np.asarray(tdata, dtype=np.float32), np.asarray(ydata, dtype=np.float32)
+			xdata[0].append(float(row[0]))
+			xdata[1].append(float(row[1]))
+			xdata[2].append(float(row[2]))
+			xdata[3].append(float(row[3]))
+			tdata.append(float(row[4]))
+			ydata.append(float(row[5]))
+	return np.asarray(xdata, dtype=np.float32), np.asarray(tdata, dtype=np.float32), np.asarray(ydata, dtype=np.float32)
 
 def readTestHrGraphY(filename):
 	"""指定された的中率テスト結果CSV内の計算出力だけを読み込む
@@ -114,9 +126,12 @@ def testhr_g():
 		csvFile = path.join(s.resultDir, baseName + str(epoch) + ".csv")
 
 		if count == 1:
-			xvals, tvals, yvals = readTestHrGraphBase(csvFile)
-			x = np.arange(0, xvals.shape[0], 1)
-			plt.plot(x, xvals, label="x")
+			xvals, tvals, yvals = readTestHrCsv(csvFile)
+			x = np.arange(0, tvals.shape[0], 1)
+			plt.plot(x, xvals[0], label="x open")
+			plt.plot(x, xvals[1], label="x high")
+			plt.plot(x, xvals[2], label="x low")
+			plt.plot(x, xvals[3], label="x close")
 			plt.plot(x, tvals, label="t")
 			plt.plot(x, yvals, label="y " + str(epoch))
 		else:
@@ -131,7 +146,7 @@ def testhr_g():
 
 	plt.gcf().canvas.set_window_title(s.trainDataFile)
 	plt.legend(loc='lower left') # 凡例表示
-	plt.xlim(xmin=0, xmax=xvals.shape[0] - 1)
+	plt.xlim(xmin=0, xmax=tvals.shape[0] - 1)
 	plt.show()
 
 #@jit
@@ -195,7 +210,7 @@ def train():
 	print("    length = {}".format(dataset.shape[0]))
 
 	# 学習ループ関係変数初期化
-	trainInit(dataset.shape[0])
+	trainInit(dataset)
 	itrStart = s.batchOffsetInitial * s.curEpoch
 	itrEnd = s.batchOffsetInitial * s.epoch
 	itrCount = itrEnd - itrStart

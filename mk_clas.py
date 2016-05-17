@@ -3,8 +3,6 @@
 
 import time
 import math
-import csv
-import codecs
 import numpy as np
 import scipy.stats as st
 from numba import jit
@@ -31,7 +29,10 @@ gxIn = None
 gyIn = None
 gxOut = None
 gyOut = None
-glIn = None
+glIn1 = None
+glIn2 = None
+glIn3 = None
+glIn4 = None
 glOut = None
 glOutV = None
 glTeachV = None
@@ -63,7 +64,7 @@ def read(filename, inMA):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
-		Returns: [int]
+		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
 	"""
 	return fxreader.read(filename, inMA)
 
@@ -91,7 +92,7 @@ def init(iniFileName):
 
 	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
-	s.n_in = s.frameSize # ニューラルネットの入力次元数
+	s.n_in = s.frameSize * 4 # ニューラルネットの入力次元数
 	s.n_out = clsNum * 2 + 1 # ニューラルネットの出力次元数
 	s.fxRetLen = 3 # クライアントに返す結果データ長
 	s.fxInitialYenDataLen = s.frameSize # 初期化時にMT4から送る必要がある円データ数
@@ -103,7 +104,10 @@ def initGraph(windowCaption):
 	global gyIn
 	global gxOut
 	global gyOut
-	global glIn
+	global glIn1
+	global glIn2
+	global glIn3
+	global glIn4
 	global glOut
 	global glOutV
 	global glTeachV
@@ -140,7 +144,10 @@ def initGraph(windowCaption):
 			glTeachV = subPlot2.axvline(x=0, color='red')
 			glOutV = subPlot2.axvline(x=0, color='orange')
 
-		glIn, = subPlot1.plot(gxIn, gyIn, label="in")
+		glIn1, = subPlot1.plot(gxIn, gyIn, label="open")
+		glIn2, = subPlot1.plot(gxIn, gyIn, label="high")
+		glIn3, = subPlot1.plot(gxIn, gyIn, label="low")
+		glIn4, = subPlot1.plot(gxIn, gyIn, label="close")
 		glOut, = subPlot2.plot(gxOut, gyOut, label="out")
 		
 		if s.mode == "testhr":
@@ -155,11 +162,16 @@ def trainGetDataAndT(dataset, i):
 	frameEnd = i + s.frameSize
 
 	# 教師値取得
+	# 既知の終値と未来の分足データ間で最も差が大きいものを教師とする
 	if s.predAve:
 		t = (dataset[frameEnd : frameEnd + s.predLen] * s.predMeanK).sum()
 	else:
 		t = dataset[frameEnd + s.predLen - 1]
-	t = int(round(100.0 * float(t - dataset[frameEnd - 1]) * clsNum / clsSpan, 0))
+	dt = t - dataset[frameEnd - 1][3]
+	min = float(dt.min())
+	max = float(dt.max())
+	t = min if math.fabs(max) < math.fabs(min) else max
+	t = int(round(100.0 * t * clsNum / clsSpan, 0))
 	if t < -clsNum:
 		t = -clsNum
 	elif clsNum < t:
@@ -167,19 +179,21 @@ def trainGetDataAndT(dataset, i):
 	t += clsNum
 
 	# フレーム取得
-	# フレーム内の平均値または中央値が0になるようシフトする
+	# フレーム内の中間値が0になるようシフトする
 	x = dataset[i : frameEnd]
-	x = x - np.median(x)
+	x = np.reshape(x, (s.frameSize * 4,))
+	x = x - (x.max() + x.min()) * 0.5
 	#x = x - (x.sum() / s.frameSize)
 	return x, t
 
 #@jit
-def trainGetData(dataset, i):
+def fxGetData(dataset):
 	"""学習データのみ取得"""
 	# フレーム取得
-	# フレーム内の平均値または中央値が0になるようシフトする
-	x = dataset[i : i + s.frameSize]
-	x = x - np.median(x)
+	# フレーム内の中間値が0になるようシフトする
+	x = dataset[-s.frameSize:]
+	x = np.reshape(x, (s.frameSize * 4,))
+	x = x - (x.max() + x.min()) * 0.5
 	#x = x - (x.sum() / s.frameSize)
 	return x
 
@@ -227,10 +241,8 @@ def trainEvaluate(dataset, index):
 
 	# 学習データ取得
 	xa, ta = trainGetDataAndT(dataset, index)
-	xa = s.xp.asarray([xa], dtype=np.float32)
-	ta = s.xp.asarray([ta], dtype=np.int32)
-	x = chainer.Variable(xa, volatile='on')
-	t = chainer.Variable(ta, volatile='on')
+	x = chainer.Variable(s.xp.asarray([xa], dtype=np.float32), volatile='on')
+	t = chainer.Variable(s.xp.asarray([ta], dtype=np.int32), volatile='on')
 
 	# ニューラルネットを通す
 	y, loss = evdnn.forward(x, t, True)
@@ -239,11 +251,14 @@ def trainEvaluate(dataset, index):
 	if s.grEnable:
 		# グラフにデータを描画する
 		plt.title(s.trainDataFile + " : " + str(index)) # グラフタイトル
-		xvals = cuda.to_cpu(dataset[index : index + s.minEvalLen])
+		xvals = dataset[index : index + s.minEvalLen].transpose()
 		tx = int(t.data[0])
 		ox = y.data.argmax(1)[0]
-		yvals = np.asarray(y.data[0].tolist(), dtype=np.float32)
-		glIn.set_ydata(xvals)
+		yvals = cuda.to_cpu(y.data[0])
+		glIn1.set_ydata(xvals[0])
+		glIn2.set_ydata(xvals[1])
+		glIn3.set_ydata(xvals[2])
+		glIn4.set_ydata(xvals[3])
 		glTeachV.set_xdata([gxOut[tx], gxOut[tx]])
 		glOut.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
@@ -258,14 +273,6 @@ def trainEvaluate(dataset, index):
 	except Exception as e:
 		print("evaluate overflow")
 		return 0.0
-
-def writeTestHrCsv(xvals, tvals, yvals):
-	"""テスト結果CSVファイルに書き込む"""
-	fname = path.join(s.resultDir, f.getTestHrFileBase() + str(s.curEpoch) + ".csv")
-	with codecs.open(fname, 'w', "shift_jis") as file:
-		writer = csv.writer(file)
-		for i in range(xvals.shape[0]):
-			writer.writerow([xvals[i], tvals[i], yvals[i]])
 
 #@jit
 def testhr():
@@ -288,18 +295,30 @@ def testhr():
 	zero = np.zeros(s.batchSize, dtype=np.float32)
 
 	if s.grEnable:
-		xvals = np.zeros(testLen, dtype=np.float32)
+		xvals = dataset.transpose()
 		tvals = np.zeros(testLen, dtype=np.int32)
 		yvals = np.zeros(testLen, dtype=np.int32)
 		evals = np.zeros(testLen, dtype=np.int32)
 
-		gxIn = np.arange(0, xvals.shape[0], 1)
+		gxIn = np.arange(0, testLen, 1)
 		gxOut = np.arange(0, testLen, 1)
-		glIn.set_xdata(gxIn)
 		glOut.set_xdata(gxOut)
+		glOut.set_ydata(yvals)
 		glErr.set_xdata(gxOut)
-		subPlot1.set_xlim(0, xvals.shape[0])
+		glErr.set_ydata(evals)
+		glIn1.set_xdata(gxIn)
+		glIn1.set_ydata(xvals[0][:testLen])
+		glIn2.set_xdata(gxIn)
+		glIn2.set_ydata(xvals[1][:testLen])
+		glIn3.set_xdata(gxIn)
+		glIn3.set_ydata(xvals[2][:testLen])
+		glIn4.set_xdata(gxIn)
+		glIn4.set_ydata(xvals[3][:testLen])
+		subPlot1.set_xlim(0, testLen)
+		subPlot1.set_ylim(f.npMaxMin([xvals[0][:testLen], xvals[1][:testLen], xvals[2][:testLen], xvals[3][:testLen]]))
 		subPlot2.set_xlim(0, testLen)
+		plt.draw()
+		plt.pause(0.001)
 
 	i = 0
 	loop = 0
@@ -318,7 +337,6 @@ def testhr():
 		y = cuda.to_cpu(y.data)
 
 		# 描画用データにセット
-		xvals[i : i + n] = dataset[i : i + n]
 		tvals[i : i + n] = tval = ta_cpu - clsNum
 		yvals[i : i + n] = yval = y.argmax(1) - clsNum
 		evals[i : i + n] = np.less(tval * yval, 0) * (tval - yval)
@@ -344,14 +362,12 @@ def testhr():
 				tvals += xvalsAverage
 				yvals += xvalsAverage
 				evals += xvalsAverage
-				writeTestHrCsv(xvals, tvals, yvals)
+				f.writeTestHrCsv(xvals, tvals, yvals)
 
-			glIn.set_ydata(xvals)
 			glOut.set_ydata(yvals)
 			glErr.set_ydata(evals)
-
-			subPlot1.set_ylim(f.npMaxMin([xvals[:i]]))
 			subPlot2.set_ylim(f.npMaxMin([tvals[:i], yvals[:i]]))
+
 			plt.draw()
 			plt.pause(0.001)
 
@@ -369,15 +385,6 @@ def testhr():
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF
 		plt.show()
-
-#@jit
-def fxGetData(dataset):
-	"""予測元データ取得"""
-	# フレーム取得
-	x = dataset[-s.frameSize:]
-	# フレーム内の平均値を0になるようシフトする
-	x = x - (x.sum() / s.frameSize)
-	return s.xp.asarray([x], dtype=np.float32)
 
 ##@jit
 def fxPrediction():
@@ -405,15 +412,18 @@ def fxPrediction():
 	pred = s.dnn.model
 	pred.train = False
 	# 予測元データ取得してニューラルネットを通す
-	y = pred(chainer.Variable(fxGetData(s.fxYenData), volatile='on'))
+	y = pred(chainer.Variable(s.xp.asarray([fxGetData(s.fxYenData)], dtype=np.float32), volatile='on'))
 	yvals = cuda.to_cpu(y.data[0]) # np.asarray(y.data[0].tolist(), dtype=np.float32)
 	ox = y.data.argmax(1)[0]
 
 	# 必要ならグラフ表示を行う
 	if s.grEnable:
 		# グラフにデータを描画する
-		xvals = s.fxYenData[-s.frameSize:]
-		glIn.set_ydata(xvals)
+		xvals = s.fxYenData[-s.frameSize:].transpose()
+		glIn1.set_ydata(xvals[0])
+		glIn2.set_ydata(xvals[1])
+		glIn3.set_ydata(xvals[2])
+		glIn4.set_ydata(xvals[3])
 		glOut.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
@@ -427,7 +437,8 @@ def fxPrediction():
 	# 移動平均の差分値
 	# 移動平均の差分値の差分値
 	deltaPips = float(clsSpan * (ox - clsNum) / clsNum)
-	ma = np.asarray(np.convolve(np.asarray(s.fxYenData[-fxRetMaSize - 3:]), fxRetMaSizeK, 'valid'), dtype=np.float32)
+	dataForMa = s.fxYenData[-fxRetMaSize - 3:].transpose()[3]
+	ma = np.asarray(np.convolve(np.asarray(dataForMa), fxRetMaSizeK, 'valid'), dtype=np.float32)
 	diff1 = np.diff(ma)
 	diff2 = np.diff(diff1)
 	return np.asarray([deltaPips, diff1[-1] * 100.0, diff2[-1] * 100.0], dtype=np.float32)

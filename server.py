@@ -160,28 +160,53 @@ class Server(threading.Thread):
 			return 1
 		elif cmdType == 2:
 			# 初期化データの受け取り
-			n = size / 8
+			n = size // (4 * 5)
 			if n < s.fxInitialYenDataLen:
 				conn.send(np.asarray(0, dtype=np.int32))
 				return 0
-			s.fxYenData = np.array(pkt[ipkt : ipkt + 4 * n].view(dtype=np.float32))
-			ipkt += 4 * n
-			s.fxMinData = np.array(pkt[ipkt : ipkt + 4 * n].view(dtype=np.int32))
+
+			stepBytes = 4 * n
+
+			yenData = np.zeros((4, n), dtype=np.float32)
+
+			yenData[0][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+			ipkt += stepBytes
+			yenData[1][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+			ipkt += stepBytes
+			yenData[2][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+			ipkt += stepBytes
+			yenData[3][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+			ipkt += stepBytes
+			s.fxMinData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
+
+			s.fxYenData = yenData.transpose()
+
 			if s.fxYenDataTrain is None:
 				s.fxYenDataTrain = s.fxYenData
 			conn.send(np.asarray(1, dtype=np.int32))
 			return 1
 		elif cmdType == 3:
 			# チャート更新時の逐次データ受け取り
-			count = size // (2 * 4)
+			count = size // (4 * 5)
 			if count == 0:
 				conn.send(np.asarray(0, dtype=np.int32))
 				return 0
-			yenData = np.array(pkt[ipkt : ipkt + 4 * count].view(dtype=np.float32))
-			ipkt += 4 * count
-			minData = np.array(pkt[ipkt : ipkt + 4 * count].view(dtype=np.int32))
 
-			print(minData)
+			stepBytes = 4 * count
+
+			yenData = np.zeros((4, count), dtype=np.float32)
+
+			yenData[0][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+			ipkt += stepBytes
+			yenData[1][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+			ipkt += stepBytes
+			yenData[2][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+			ipkt += stepBytes
+			yenData[3][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+			ipkt += stepBytes
+			minData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
+
+			yenData = yenData.transpose()
 
 			m = s.fxMinData[-1]
 			index = int(np.searchsorted(minData, int(m)))
@@ -207,7 +232,8 @@ class Server(threading.Thread):
 					yens = yens[n:]
 					mins = mins[n:]
 				appendYens = yenData[index:]
-				s.fxYenData = np.append(yens, appendYens)
+				yens = np.append(yens, appendYens)
+				s.fxYenData = np.reshape(yens, (yens.shape[0] / 4, 4))
 				s.fxMinData = np.append(mins, minData[index:])
 				#print("append: ", appendYens)
 

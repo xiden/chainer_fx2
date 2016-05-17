@@ -94,7 +94,7 @@ def read(filename, inMA):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
-		Returns: [int]
+		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
 	"""
 	return encodeArray(fxreader.read(filename, inMA))
 
