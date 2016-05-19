@@ -16,6 +16,7 @@ enum class Cmd : int32 {
 	SendFxData,
 	RecvPredictionData,
 	SetYenAveK,
+	Log,
 };
 
 #pragma pack(push, 1)
@@ -183,6 +184,26 @@ FXDNN_API int __stdcall FxDnnSetYenAveK(double k) {
 	auto pPkt = GrowPktBuf(size);
 	memcpy(&pPkt->Data[0], &k, sizeof(double));
 	pPkt->CmdId = Cmd::SetYenAveK;
+	SendToSize(g_Sk, pPkt, size);
+
+	int32 result;
+	if (!RecvToSize(g_Sk, &result, sizeof(result)))
+		return -1;
+
+	return 0;
+}
+
+FXDNN_API int __stdcall FxDnnLog(int64_t tickTime, int64_t candleTime, int count, const float* pData) {
+	auto size = Pkt::HeaderSize + sizeof(int64_t) + sizeof(int64_t) + count * sizeof(float);
+	auto pPkt = GrowPktBuf(size);
+	auto p = &pPkt->Data[0];
+	*(int64_t*)p = tickTime; p += sizeof(int64_t);
+	*(int64_t*)p = candleTime; p += sizeof(int64_t);
+	for (int i = 0; i < count; i++) {
+		*(float*)p = pData[i];
+		p += sizeof(float);
+	}
+	pPkt->CmdId = Cmd::Log;
 	SendToSize(g_Sk, pPkt, size);
 
 	int32 result;

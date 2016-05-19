@@ -5,6 +5,96 @@ import numpy as np
 from numba import jit
 import mk_clas as c
 
+class N15Relu(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_midunits),
+			l5=L.Linear(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_midunits),
+			l7=L.Linear(n_midunits, n_midunits),
+			l8=L.Linear(n_midunits, n_midunits),
+			l9=L.Linear(n_midunits, n_midunits),
+			l10=L.Linear(n_midunits, n_midunits),
+			l11=L.Linear(n_midunits, n_midunits),
+			l12=L.Linear(n_midunits, n_midunits),
+			l13=L.Linear(n_midunits, n_midunits),
+			l14=L.Linear(n_midunits, n_midunits),
+			l15=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(m, x):
+		h = F.relu(m.l1(x))
+		h = F.relu(m.l2(h))
+		h = F.relu(m.l3(h))
+		h = F.relu(m.l4(h))
+		h = F.relu(m.l5(h))
+		h = F.relu(m.l6(h))
+		h = F.relu(m.l7(h))
+		h = F.relu(m.l8(h))
+		h = F.relu(m.l9(h))
+		h = F.relu(m.l10(h))
+		h = F.relu(m.l11(h))
+		h = F.relu(m.l12(h))
+		h = F.relu(m.l13(h))
+		h = F.relu(m.l14(h))
+		h = m.l15(h)
+		return h
+
+	def getModelKind(self):
+		return "clas"
+
+class N10Relu(chainer.Chain):
+	def __init__(self):
+		pass
+
+	def create(self, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units // 1
+		super().__init__(
+			l1=L.Linear(n_in, n_midunits),
+			l2=L.Linear(n_midunits, n_midunits),
+			l3=L.Linear(n_midunits, n_midunits),
+			l4=L.Linear(n_midunits, n_midunits),
+			l5=L.Linear(n_midunits, n_midunits),
+			l6=L.Linear(n_midunits, n_midunits),
+			l7=L.Linear(n_midunits, n_midunits),
+			l8=L.Linear(n_midunits, n_midunits),
+			l9=L.Linear(n_midunits, n_midunits),
+			l10=L.Linear(n_midunits, n_out),
+		)
+		self.train = train
+
+	def reset_state(self):
+		pass
+
+	#@jit
+	def __call__(m, x):
+		h = F.relu(m.l1(x))
+		h = F.relu(m.l2(h))
+		h = F.relu(m.l3(h))
+		h = F.relu(m.l4(h))
+		h = F.relu(m.l5(h))
+		h = F.relu(m.l6(h))
+		h = F.relu(m.l7(h))
+		h = F.relu(m.l8(h))
+		h = F.relu(m.l9(h))
+		h = m.l10(h)
+		return h
+
+	def getModelKind(self):
+		return "clas"
+
 class N7ReluDo(chainer.Chain):
 	def __init__(self):
 		pass

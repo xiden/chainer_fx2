@@ -1,11 +1,15 @@
 ﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*- 
 
-import argparse
 import sys
-import csv
+import os
+import os.path as path
+import pathlib
+import argparse
+import threading
+import win32api
+import win32con
 from numba import jit
-import random
 import numpy as np
 import matplotlib.pyplot as plt
 import chainer
@@ -14,16 +18,12 @@ import chainer.functions as F
 from chainer import cuda
 from chainer import optimizers
 from chainer import serializers
+
 import net
-import os
-import os.path as path
-from pathlib import Path
-import threading
-import win32api
-import win32con
 import ini
 import mk_lstm
 import mk_clas
+
 
 def loadModelAndOptimizer():
 	"""モデルとオプティマイザ読み込み"""
@@ -43,13 +43,42 @@ def saveModelAndOptimizer():
 		print('save the optimizer')
 		serializers.save_npz(stateFile, dnn.optimizer)
 
+def findDataset(symbol):
+	"""指定されたデータセットに合致するファイル名を取得する.
+	Args:
+		symbol: 0_5000_10000 の様な形式の文字列、0がデータセット番号(負数なら最古データ)、5000が最小データ数、10000が最大データ数.
+	"""
+
+	number, minDataCount, maxDataCount = symbol.split("_")
+	number = int(number)
+	minDataCount = int(minDataCount)
+	maxDataCount = int(maxDataCount)
+
+	p = pathlib.Path("Datasets")
+	l = list(p.glob("[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]_[0-9]*.csv"))
+	datasets = []
+	for pl in l:
+		fn = path.splitext(pl.name)[0]
+		fields = fn.split("_")
+		count = int(fields[2])
+		if count < minDataCount or maxDataCount < count:
+			continue
+		datasets.append([fields[0] + "_" + fields[1], fields[2]])
+
+	datasets.sort(key=lambda x:x[0], reverse=True)
+	d = datasets[number]
+	return d[0] + "_" + d[1] + ".csv"
+
+
+
 # コマンドライン引数解析
 parser = argparse.ArgumentParser()
 parser.add_argument('iniFileName', help='設定ファイル')
 parser.add_argument('--mode', '-m', default='', help='実行モードオーバーライド')
-parser.add_argument('--trainDataFile', '-tdf', default='', help='学習用ドル円CSVファイル')
 parser.add_argument('--grEnable', '-gr', default='', help='グラフ表示するなら1、それ以外は0')
 parser.add_argument('--epoch', '-e', default='', help='目標エポック数、INIファイルの方も書き換える')
+parser.add_argument('--train', '-t', default='', help='追加学習エポック数、INIファイルの目標エポック数が書き換わる')
+parser.add_argument('--dataset', '-d', default='', help='データセット選択INIファイルも書き換わる、 0_5000_10000 の様に指定する、0が番号(負数なら最古データ)、5000が最小データ数、10000が最大データ数')
 
 args = parser.parse_args()
 configFileName = path.join("Configs", args.iniFileName)
@@ -81,8 +110,10 @@ adaDeltaRho = configIni.getFloat("adaDeltaRho", "0.95") # AdaDeltaアルゴリ�
 adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴリズムのeps値
 serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
 
+if len(args.dataset) != 0:
+	trainDataFile = findDataset(args.dataset)
+	configIni.set("trainDataFile", trainDataFile)
 if len(args.mode) != 0: mode = args.mode # 実行モードオーバーライド
-if len(args.trainDataFile) != 0: trainDataFile = args.trainDataFile # 学習データファイルオーバーライド
 if len(args.epoch) != 0:
 	epoch = int(args.epoch) # エポック数オーバーライド
 	configIni.set("epoch", epoch)
@@ -94,7 +125,7 @@ predMeanK = np.ones(predLen) # 未来教師データの平均化係数
 #predictionMeanK = np.arange(1.0 / predLen, 1.0, 1.0 / (predLen + 1))
 #predictionMeanK *= predictionMeanK
 predMeanK = predMeanK / predMeanK.sum()
-predMeanK.reshape((predLen, 1))
+predMeanK = predMeanK.reshape((predLen, 1))
 minPredLen = 0 # ドル円未来予測に必要な最小分足データ数、実際に必要なデータ数は4倍となる
 minEvalLen = 0 # 学習結果の評価に必要な最小分足データ数、実際に必要なデータ数は4倍となる
 fxRequiredYenDataLen = 0 # MT4から送る必要がある分足データ数、実際に必要なデータ数は4倍となる
@@ -155,6 +186,10 @@ modelFile = testFilePath + ".model"
 stateFile = testFilePath + ".state"
 testFileIni = ini.file(testFilePath + ".ini", "DEFAULT")
 curEpoch = testFileIni.getInt("curEpoch", 0) # 現在の実施済みエポック数取得
+if len(args.train) != 0:
+	train = int(args.train) # 追加学習エポック数
+	epoch = curEpoch + train
+	configIni.set("epoch", epoch)
 
 if mode != "testhr_g":
 	# モデル別のグラフ処理初期化

@@ -90,13 +90,13 @@ def decode(v):
 def decodeArray(v):
 	return v * 20.0 + 110.0
 
-def read(filename, inMA):
+def readDataset(filename, inMA):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
 	"""
-	return encodeArray(fxreader.read(filename, inMA))
+	return encodeArray(fxreader.readDataset(filename, inMA))
 
 def initAveYenKs(k):
 	"""未来予測データの１階～４階微分の合成係数の初期化、指定可能範囲は 0.0 < startK < 1.0、数値が大きい程未来の値の割合が大きくなる"""
@@ -375,7 +375,7 @@ def testhr():
 
 	print('Hit rate test mode')
 	print("Loading data from  " + s.trainDataFile)
-	dataset = s.mk.read(s.trainDataFile, s.inMA)
+	dataset = s.mk.readDataset(s.trainDataFile, s.inMA)
 	index = 0
 
 	# モデルに影響を与えないようにコピーする

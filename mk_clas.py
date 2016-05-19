@@ -35,6 +35,7 @@ glIn3 = None
 glIn4 = None
 glOut = None
 glOutV = None
+glTeach = None
 glTeachV = None
 glErr = None
 
@@ -60,13 +61,13 @@ class Dnn(object):
 		self.optimizer.update()
 
 
-def read(filename, inMA):
+def readDataset(filename, inMA):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
 	"""
-	return fxreader.read(filename, inMA)
+	return fxreader.readDataset(filename, inMA)
 
 def init(iniFileName):
 	"""クラス分類用の初期化を行う"""
@@ -110,6 +111,7 @@ def initGraph(windowCaption):
 	global glIn4
 	global glOut
 	global glOutV
+	global glTeach
 	global glTeachV
 	global glErr
 
@@ -148,10 +150,11 @@ def initGraph(windowCaption):
 		glIn2, = subPlot1.plot(gxIn, gyIn, label="high")
 		glIn3, = subPlot1.plot(gxIn, gyIn, label="low")
 		glIn4, = subPlot1.plot(gxIn, gyIn, label="close")
-		glOut, = subPlot2.plot(gxOut, gyOut, label="out")
+		glOut, = subPlot2.plot(gxOut, gyOut, label="y")
 		
 		if s.mode == "testhr":
 			glErr, = subPlot2.plot(gxOut, gyOut, label="err", color='red')
+			glTeach, = subPlot2.plot(gxOut, gyOut, label="t", color='green')
 
 def getTestFileName(testFileName):
 	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan)
@@ -163,20 +166,38 @@ def trainGetDataAndT(dataset, i):
 
 	# 教師値取得
 	# 既知の終値と未来の分足データ間で最も差が大きいものを教師とする
+	last = dataset[frameEnd - 1][3]
+	predData = dataset[frameEnd : frameEnd + s.predLen]
 	if s.predAve:
-		t = (dataset[frameEnd : frameEnd + s.predLen] * s.predMeanK).sum()
+		tmin = tmax = (predData * s.predMeanK).sum()
 	else:
-		t = dataset[frameEnd + s.predLen - 1]
-	dt = t - dataset[frameEnd - 1][3]
-	min = float(dt.min())
-	max = float(dt.max())
-	t = min if math.fabs(max) < math.fabs(min) else max
+		tmin = predData.min()
+		tmax = predData.max()
+	dtmin = float(tmin - last)
+	dtmax = float(tmax - last)
+	t = dtmin if math.fabs(dtmax) < math.fabs(dtmin) else dtmax
 	t = int(round(100.0 * t * clsNum / clsSpan, 0))
 	if t < -clsNum:
 		t = -clsNum
 	elif clsNum < t:
 		t = clsNum
 	t += clsNum
+
+	## 教師値取得
+	## 既知の終値と未来の分足データの終値との差を教師とする
+	#last = dataset[frameEnd - 1][3]
+	#predData = dataset[frameEnd : frameEnd + s.predLen]
+	#if s.predAve:
+	#	p = (predData * s.predMeanK).sum()
+	#else:
+	#	p = predData[-1][3]
+	#d = p - last
+	#t = int(round(100.0 * d * clsNum / clsSpan, 0))
+	#if t < -clsNum:
+	#	t = -clsNum
+	#elif clsNum < t:
+	#	t = clsNum
+	#t += clsNum
 
 	# フレーム取得
 	# フレーム内の中間値が0になるようシフトする
@@ -280,7 +301,7 @@ def testhr():
 
 	print('Hit rate test mode')
 	print("Loading data from  " + s.trainDataFile)
-	dataset = s.mk.read(s.trainDataFile, s.inMA)
+	dataset = s.mk.readDataset(s.trainDataFile, s.inMA)
 	index = 0
 
 	# モデルに影響を与えないようにコピーする
@@ -302,6 +323,8 @@ def testhr():
 
 		gxIn = np.arange(0, testLen, 1)
 		gxOut = np.arange(0, testLen, 1)
+		glTeach.set_xdata(gxOut)
+		glTeach.set_ydata(tvals)
 		glOut.set_xdata(gxOut)
 		glOut.set_ydata(yvals)
 		glErr.set_xdata(gxOut)
@@ -317,6 +340,8 @@ def testhr():
 		subPlot1.set_xlim(0, testLen)
 		subPlot1.set_ylim(f.npMaxMin([xvals[0][:testLen], xvals[1][:testLen], xvals[2][:testLen], xvals[3][:testLen]]))
 		subPlot2.set_xlim(0, testLen)
+		subPlot1.legend(loc='lower left') # 凡例表示
+		subPlot2.legend(loc='lower left') # 凡例表示
 		plt.draw()
 		plt.pause(0.001)
 
@@ -339,14 +364,14 @@ def testhr():
 		# 描画用データにセット
 		tvals[i : i + n] = tval = ta_cpu - clsNum
 		yvals[i : i + n] = yval = y.argmax(1) - clsNum
-		evals[i : i + n] = np.less(tval * yval, 0) * (tval - yval)
+		evals[i : i + n] = np.less(tval * yval, 0) * (tval - yval) # 符号が逆の場合のみ誤差波形になるようにする
 
 		# 的中率更新
 		i += n
 		hitcount += np.equal(tval, yval).sum()
 		print(i, ": ", 100.0 * hitcount / i, "%")
 
-		if loop % 10 == 0 or testLen <= i:
+		if loop % 100 == 0 or testLen <= i:
 			# 指定間隔または最終データ完了後に
 			# グラフにデータを描画する
 			plt.title("testhr: " + s.trainDataFile) # グラフタイトル
@@ -364,6 +389,7 @@ def testhr():
 				evals += xvalsAverage
 				f.writeTestHrCsv(xvals, tvals, yvals)
 
+			glTeach.set_ydata(tvals)
 			glOut.set_ydata(yvals)
 			glErr.set_ydata(evals)
 			subPlot2.set_ylim(f.npMaxMin([tvals[:i], yvals[:i]]))

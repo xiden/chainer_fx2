@@ -2,15 +2,18 @@ import csv
 import codecs
 import math
 import random
+import os.path as path
 import numpy as np
 import share as s
 
-def read(filename, inMA):
+def readDataset(filename, inMA):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
 	"""
+	filename = path.join("Datasets", filename)
+	print(filename)
 
 	with open(filename, "r") as f:
 		if s.trainDataDummy == "line":

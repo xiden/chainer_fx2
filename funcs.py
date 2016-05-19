@@ -205,7 +205,7 @@ def train():
 
 	# 学習データ読み込み
 	print("Loading data from  " + s.trainDataFile)
-	dataset = s.mk.read(s.trainDataFile, s.inMA)
+	dataset = s.mk.readDataset(s.trainDataFile, s.inMA)
 	#dataset = cuda.to_gpu(dataset)
 	print("    length = {}".format(dataset.shape[0]))
 
