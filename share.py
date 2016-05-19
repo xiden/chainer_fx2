@@ -75,10 +75,11 @@ def findDataset(symbol):
 parser = argparse.ArgumentParser()
 parser.add_argument('iniFileName', help='設定ファイル')
 parser.add_argument('--mode', '-m', default='', help='実行モードオーバーライド')
-parser.add_argument('--grEnable', '-gr', default='', help='グラフ表示するなら1、それ以外は0')
+parser.add_argument('--grEnable', '-g', default='', help='グラフ表示するなら1、それ以外は0')
 parser.add_argument('--epoch', '-e', default='', help='目標エポック数、INIファイルの方も書き換える')
 parser.add_argument('--train', '-t', default='', help='追加学習エポック数、INIファイルの目標エポック数が書き換わる')
 parser.add_argument('--dataset', '-d', default='', help='データセット選択INIファイルも書き換わる、 0_5000_10000 の様に指定する、0が番号(負数なら最古データ)、5000が最小データ数、10000が最大データ数')
+parser.add_argument('--nettype', '-n', default='', help='ニューラルネットワークタイプ名、INIファイルも書き換わる')
 
 args = parser.parse_args()
 configFileName = path.join("Configs", args.iniFileName)
@@ -110,14 +111,22 @@ adaDeltaRho = configIni.getFloat("adaDeltaRho", "0.95") # AdaDeltaアルゴリ�
 adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴリズムのeps値
 serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
 
+# コマンドライン引数によるINI設定のオーバーライド
+if len(args.mode) != 0:
+	mode = args.mode # 実行モードオーバーライド
+	configIni.set("mode", "mode")
 if len(args.dataset) != 0:
 	trainDataFile = findDataset(args.dataset)
 	configIni.set("trainDataFile", trainDataFile)
-if len(args.mode) != 0: mode = args.mode # 実行モードオーバーライド
 if len(args.epoch) != 0:
 	epoch = int(args.epoch) # エポック数オーバーライド
 	configIni.set("epoch", epoch)
-if len(args.grEnable) != 0: grEnable = int(args.grEnable) # グラフ表示オーバーライド
+if len(args.nettype) != 0:
+	netType = args.nettype # ネットワークタイプオーバーライド
+	configIni.set("netType", netType)
+if len(args.grEnable) != 0:
+	grEnable = int(args.grEnable) # グラフ表示オーバーライド
+	configIni.set("grEnable", grEnable)
 
 # その他グローバル変数初期化
 inMA = (inMA // 2) * 2 + 1 # 入力値移動平均サイズを奇数にする
@@ -148,13 +157,9 @@ batchOffset = 0 # 学習時バッチ処理の現在オフセット
 n_in = 0 # ニューラルネットの入力次元数
 n_out = 0 # ニューラルネットの出力次元数
 resultRootDir = "Results" # プロジェクト結果保存用ルートディレクトリ名
-resultDir = path.join(resultRootDir, path.splitext(path.basename(configFileName))[0]) # プロジェクト結果保存用ディレクトリ名
-
-# プロジェクト結果保存用ディレクトリ無ければ作成
-if not path.isdir(resultRootDir):
-	os.mkdir(resultRootDir)
-if not path.isdir(resultDir):
-	os.mkdir(resultDir)
+resultConfigDir = path.join(resultRootDir, path.splitext(path.basename(configFileName))[0]) # 設定ファイル別の結果保存ディレクトリ名
+resultTestDir = None # 試験設定別結果保存ディレクトリ名
+resultHrDir = None # 的中率結果保存ディレクトリ名
 
 # ネットワークモデルの種類により大域的に変わる処理の初期化を行う
 netClassDef = getattr(net, netType)
@@ -169,27 +174,44 @@ else:
 dnn = mk.Dnn()
 mk.init(configFileName)
 
-# GPU使うならそれ用の数値処理ライブラリ取得
-xp = cuda.cupy if gpu >= 0 else np
-
-# 結果残すためのファイル名初期化
-# ネットタイプと設定ファイル名によりモデルデータファイル名修飾文字列作成
-# これはモデルファイル名に付与される
-batchName = "btch" + str(batchSize) + ("rnd" if batchRandom else "")
-predName = ("pa" if predAve else "p") + str(predLen)
-testFileName = str(netType) + "_" + optm + "_" + batchName + "_u" + str(numUnits) + "f" + str(frameSize) + predName
-testFileName = mk.getTestFileName(testFileName)
-testFilePath = path.join(resultDir, testFileName)
+# 結果残すための試験ファイル名初期化
+# 試験設定をファイル名に付与する
+testFileName = str(netType) # ネットモデル名
+testFileName += "_" + optm  # オプティマイザ名
+testFileName += "_" + "btch" + str(batchSize) + ("rnd" if batchRandom else "") # バッチ数
+testFileName += "_u" + str(numUnits) # ユニット数
+testFileName += "f" + str(frameSize) # フレームサイズ
+testFileName += ("pa" if predAve else "p") + str(predLen) # 未来予測オフセット値
+testFileName = mk.getTestFileName(testFileName) # ネットモデル用のポストフィックス付けて完成
 if trainDataDummy:
-	testFileName += "_" + trainDataDummy
+	testFileName += "_" + trainDataDummy # ダミー学習データ使ったならその種類も付与
+resultTestDir = path.join(resultConfigDir, testFileName) # 試験設定別結果保存ディレクトリ名確定
+resultHrDir = path.join(resultTestDir, "hr") # 的中率結果保存ディレクトリ名確定
+
+# 結果保存用ディレクトリ無ければ作成
+if not path.isdir(resultRootDir):
+	os.mkdir(resultRootDir)
+if not path.isdir(resultConfigDir):
+	os.mkdir(resultConfigDir)
+if not path.isdir(resultTestDir):
+	os.mkdir(resultTestDir)
+if not path.isdir(resultHrDir):
+	os.mkdir(resultHrDir)
+
+testFilePath = path.join(resultTestDir, "test")
 modelFile = testFilePath + ".model"
 stateFile = testFilePath + ".state"
 testFileIni = ini.file(testFilePath + ".ini", "DEFAULT")
 curEpoch = testFileIni.getInt("curEpoch", 0) # 現在の実施済みエポック数取得
 if len(args.train) != 0:
-	train = int(args.train) # 追加学習エポック数
+	# 追加学習エポック数が指定されていたら加算しておく
+	train = int(args.train)
 	epoch = curEpoch + train
 	configIni.set("epoch", epoch)
+
+
+# GPU使うならそれ用の数値処理ライブラリ取得
+xp = cuda.cupy if gpu >= 0 else np
 
 if mode != "testhr_g":
 	# モデル別のグラフ処理初期化

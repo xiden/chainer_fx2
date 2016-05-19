@@ -312,15 +312,20 @@ def testhr():
 	testPos = 0
 	testLen = dataset.shape[0] - s.minEvalLen
 	count = 0
-	hitcount = 0
+	hitcount = 0 # 教師と出力が一致した回数
+	hitnzcount = 0 # 教師と出力が0以外の時に一致した回数
+	sdcount = 0 # 教師と出力が同じ極性だった回数
 	zero = np.zeros(s.batchSize, dtype=np.float32)
 
-	if s.grEnable:
-		xvals = dataset.transpose()
-		tvals = np.zeros(testLen, dtype=np.int32)
-		yvals = np.zeros(testLen, dtype=np.int32)
-		evals = np.zeros(testLen, dtype=np.int32)
+	xvals = dataset.transpose()
+	tvals = np.zeros(testLen, dtype=np.int32)
+	yvals = np.zeros(testLen, dtype=np.int32)
+	evals = np.zeros(testLen, dtype=np.int32)
+	htrates = np.zeros(testLen, dtype=np.float32)
+	htzrates = np.zeros(testLen, dtype=np.float32)
+	sdrates = np.zeros(testLen, dtype=np.float32)
 
+	if s.grEnable:
 		gxIn = np.arange(0, testLen, 1)
 		gxOut = np.arange(0, testLen, 1)
 		glTeach.set_xdata(gxOut)
@@ -342,6 +347,7 @@ def testhr():
 		subPlot2.set_xlim(0, testLen)
 		subPlot1.legend(loc='lower left') # 凡例表示
 		subPlot2.legend(loc='lower left') # 凡例表示
+		plt.title("testhr: " + s.trainDataFile) # グラフタイトル
 		plt.draw()
 		plt.pause(0.001)
 
@@ -364,17 +370,22 @@ def testhr():
 		# 描画用データにセット
 		tvals[i : i + n] = tval = ta_cpu - clsNum
 		yvals[i : i + n] = yval = y.argmax(1) - clsNum
-		evals[i : i + n] = np.less(tval * yval, 0) * (tval - yval) # 符号が逆の場合のみ誤差波形になるようにする
+		revs = np.less(tval * yval, 0) # 教師と出力の極性が逆フラグ
+		evals[i : i + n] = revs * (tval - yval) # 極性が逆の場合のみ誤差波形になるようにする
 
 		# 的中率更新
 		i += n
-		hitcount += np.equal(tval, yval).sum()
-		print(i, ": ", 100.0 * hitcount / i, "%")
+		eqs = np.equal(tval, yval)
+		nzs = eqs * np.not_equal(yval, 0)
+		hitcount += eqs.sum()
+		hitnzcount += nzs.sum()
+		sdcount += n - revs.sum()
+
+		print("{0}: {1:.2f}%, {2:.2f}%, {3:.2f}%".format(i, 100.0 * hitcount / i, 100.0 * hitnzcount / i, 100.0 * sdcount / i))
 
 		if loop % 100 == 0 or testLen <= i:
 			# 指定間隔または最終データ完了後に
 			# グラフにデータを描画する
-			plt.title("testhr: " + s.trainDataFile) # グラフタイトル
 
 			if testLen <= i:
 				# 最終データ完了後なら
@@ -387,26 +398,24 @@ def testhr():
 				tvals += xvalsAverage
 				yvals += xvalsAverage
 				evals += xvalsAverage
-				f.writeTestHrCsv(xvals, tvals, yvals)
+				f.writeTestHrGraphCsv(xvals, tvals, yvals)
 
-			glTeach.set_ydata(tvals)
-			glOut.set_ydata(yvals)
-			glErr.set_ydata(evals)
-			subPlot2.set_ylim(f.npMaxMin([tvals[:i], yvals[:i]]))
-
-			plt.draw()
-			plt.pause(0.001)
+			if s.grEnable:
+				glTeach.set_ydata(tvals)
+				glOut.set_ydata(yvals)
+				glErr.set_ydata(evals)
+				subPlot2.set_ylim(f.npMaxMin([tvals[:i], yvals[:i]]))
+				plt.draw()
+				plt.pause(0.001)
 
 		loop += 1
 
-	result = 100.0 * hitcount / testLen
-	print("result: ", result, "%")
+	hitRate = 100.0 * hitcount / testLen
+	nzhitRate = 100.0 * hitnzcount / testLen
+	sdRate = 100.0 * sdcount / testLen
+	print("{0:.2f}%, {1:.2f}%, {2:.2f}%".format(hitRate, nzhitRate, sdRate))
 
-	section = s.trainDataFile
-	testFileIni = ini.file(s.testFilePath + ".ini", section)
-	testFileIni.set("hitRate" + str(s.curEpoch), result)
-	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSectionCommentRemove("DEFAULT"))
-	testFileIni.setSection(section + "_CLAS" + str(s.curEpoch), s.configIni.getSectionCommentRemove("CLAS"))
+	f.writeTestHrStatCsv(s.curEpoch, hitRate, nzhitRate, sdRate)
 
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF

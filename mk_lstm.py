@@ -455,7 +455,7 @@ def testhr():
 						tvals = decodeArray(tvals)
 						yvals = decodeArray(yvals)
 						# CSVファイルに吐き出す
-						fname = path.join(s.resultDir, f.getTestHrFileBase() + str(s.curEpoch) + ".csv")
+						fname = path.join(s.resultTestDir, f.getTestHrGraphFileBase() + str(s.curEpoch) + ".csv")
 						with codecs.open(fname, 'w', "shift_jis") as file:
 							writer = csv.writer(file)
 							for i in range(ivals.shape[0]):
@@ -488,11 +488,7 @@ def testhr():
 	result = 100.0 * hitcount / count
 	print("result: ", result, "%")
 
-	section = s.trainDataFile
-	testFileIni = ini.file(s.testFilePath + ".ini", section)
-	testFileIni.set("hitRate" + str(s.curEpoch), result)
-	testFileIni.setSection(section + "_DEFAULT" + str(s.curEpoch), s.configIni.getSectionCommentRemove("DEFAULT"))
-	testFileIni.setSection(section + "_LSTM" + str(s.curEpoch), s.configIni.getSectionCommentRemove("LSTM"))
+	f.writeTestHrStatCsv(s.curEpoch, result)
 
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF
