@@ -1,15 +1,15 @@
 ﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*- 
 
+import time
+import datetime
+import threading
+import traceback
 import socket
 from contextlib import closing
-import struct
 import numpy as np
-import threading
-import time
 from numba import jit
 import share as s
-import traceback
 
 @jit
 def recvI8Arr(sock, buf, count):
@@ -85,6 +85,14 @@ class Server(threading.Thread):
 		self.backlog = 10
 		self.buf = np.zeros(2 ** 20, dtype=np.int8)
 		self.acceptanceSock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+		self.cmdHandlers = [
+			self.cmdUninitialize,
+			self.cmdGetInitiateInfo,
+			self.cmdInitialize,
+			self.cmdSendFxData,
+			self.cmdRecvPredictionData,
+			self.cmdSetYenAveK,
+			self.cmdLog]
 
 	def launch(self):
 		## とりあえず現状のモデルをドル円予測で使える様にコピー
@@ -124,12 +132,7 @@ class Server(threading.Thread):
 			self.acceptanceSock.shutdown(socket.SHUT_RDWR)
 			self.acceptanceSock.close()
 
-	@jit
-	def run(self):
-		#s.trainFxYen()
-		pass
-
-	@jit
+	#@jit
 	def procFunc(self, conn):
 		# 命令パケット受け取り
 		pkt = recvPacket(conn, self.buf)
@@ -144,120 +147,143 @@ class Server(threading.Thread):
 		ipkt = 4
 		size -= 4
 
-		# コマンド種類ごとに処理を分ける
-		if cmdType == 0:
-			# 終了
-			conn.send(np.asarray(1, dtype=np.int32))
-			conn.shutdown(socket.SHUT_RDWR)
-			conn.close()
+		# コマンド実行
+		return self.cmdHandlers[cmdType](conn, pkt, ipkt, size)
+
+	@jit
+	def run(self):
+		#s.trainFxYen()
+		pass
+
+	def cmdUninitialize(self, conn, pkt, ipkt, size):
+		"""終了コマンド"""
+		conn.send(np.asarray(1, dtype=np.int32))
+		conn.shutdown(socket.SHUT_RDWR)
+		conn.close()
+		return 0
+
+	def cmdGetInitiateInfo(self, conn, pkt, ipkt, size):
+		"""初期化に必要なデータ数とサーバーが返す予測データ数の取得"""
+		a = np.zeros(2, dtype=np.int32)
+		a[0] = s.fxInitialYenDataLen
+		a[1] = s.fxRetLen
+		conn.send(a)
+		return 1
+
+	def cmdInitialize(self, conn, pkt, ipkt, size):
+		"""初期化データの受け取り"""
+		n = size // (4 * 5)
+		if n < s.fxInitialYenDataLen:
+			conn.send(np.asarray(0, dtype=np.int32))
 			return 0
-		if cmdType == 1:
-			# 初期化に必要なデータ数とサーバーが返す予測データ数の取得
-			a = np.zeros(2, dtype=np.int32)
-			a[0] = s.fxInitialYenDataLen
-			a[1] = s.fxRetLen
-			conn.send(a)
-			return 1
-		elif cmdType == 2:
-			# 初期化データの受け取り
-			n = size // (4 * 5)
-			if n < s.fxInitialYenDataLen:
-				conn.send(np.asarray(0, dtype=np.int32))
-				return 0
 
-			stepBytes = 4 * n
+		stepBytes = 4 * n
 
-			yenData = np.zeros((4, n), dtype=np.float32)
+		yenData = np.zeros((4, n), dtype=np.float32)
 
-			yenData[0][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
-			ipkt += stepBytes
-			yenData[1][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
-			ipkt += stepBytes
-			yenData[2][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
-			ipkt += stepBytes
-			yenData[3][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
-			ipkt += stepBytes
-			s.fxMinData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
+		yenData[0][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		ipkt += stepBytes
+		yenData[1][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		ipkt += stepBytes
+		yenData[2][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		ipkt += stepBytes
+		yenData[3][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		ipkt += stepBytes
+		s.fxMinData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
 
-			s.fxYenData = yenData.transpose()
+		s.fxYenData = yenData.transpose()
+
+		if s.fxYenDataTrain is None:
+			s.fxYenDataTrain = s.fxYenData
+		conn.send(np.asarray(1, dtype=np.int32))
+		return 1
+
+	def cmdSendFxData(self, conn, pkt, ipkt, size):
+		"""チャート更新時の逐次データ受け取り"""
+		count = size // (4 * 5)
+		if count == 0:
+			conn.send(np.asarray(0, dtype=np.int32))
+			return 0
+
+		stepBytes = 4 * count
+
+		yenData = np.zeros((4, count), dtype=np.float32)
+
+		yenData[0][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		ipkt += stepBytes
+		yenData[1][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		ipkt += stepBytes
+		yenData[2][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		ipkt += stepBytes
+		yenData[3][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		ipkt += stepBytes
+		minData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
+
+		yenData = yenData.transpose()
+
+		m = s.fxMinData[-1]
+		index = int(np.searchsorted(minData, int(m)))
+
+		# 追加開始インデックスと追加データ数計算、実際に追加されるのは１つ後のデータからとなる
+		index += 1
+		n = count - index
+		if n < 0:
+			n = 0
+
+		# 現在保持しているデータ最後尾に対応するデータを上書き
+		s.fxYenData[-1] = yenData[index - 1]
+		#print("set: ", yenData[index - 1])
+
+		# 追加するデータがあるなら追加する
+		if n != 0:
+			maxDataCount = 50000 * 2 # 1ヶ月分ほど蓄える
+			yens = s.fxYenData
+			mins = s.fxMinData
+			if maxDataCount < yens.shape[0] + n:
+				# 最大データ数超えたら半分にする
+				n = yens.shape[0] + n - maxDataCount // 2
+				yens = yens[n:]
+				mins = mins[n:]
+			appendYens = yenData[index:]
+			yens = np.append(yens, appendYens)
+			s.fxYenData = np.reshape(yens, (yens.shape[0] / 4, 4))
+			s.fxMinData = np.append(mins, minData[index:])
+			#print("append: ", appendYens)
 
 			if s.fxYenDataTrain is None:
 				s.fxYenDataTrain = s.fxYenData
-			conn.send(np.asarray(1, dtype=np.int32))
-			return 1
-		elif cmdType == 3:
-			# チャート更新時の逐次データ受け取り
-			count = size // (4 * 5)
-			if count == 0:
-				conn.send(np.asarray(0, dtype=np.int32))
-				return 0
 
-			stepBytes = 4 * count
+		conn.send(np.asarray(1, dtype=np.int32))
+		return 1
 
-			yenData = np.zeros((4, count), dtype=np.float32)
+	def cmdRecvPredictionData(self, conn, pkt, ipkt, size):
+		"""現在受け取ってるドル円データで未来を予測する"""
+		data = s.mk.fxPrediction()
+		conn.send(data)
+		return 1
 
-			yenData[0][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
-			ipkt += stepBytes
-			yenData[1][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
-			ipkt += stepBytes
-			yenData[2][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
-			ipkt += stepBytes
-			yenData[3][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
-			ipkt += stepBytes
-			minData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
+	def cmdSetYenAveK(self, conn, pkt, ipkt, size):
+		"""予測値の合成係数の取得"""
+		#if size < 8:
+		#	conn.send(np.asarray(0, dtype=np.int32))
+		#	return 0
+		#k = float(pkt[ipkt : ipkt + 8].view(dtype=np.float64))
+		#s.initAveYenKs(k)
+		#print(k)
+		#conn.send(np.asarray(1, dtype=np.int32))
+		#return 1
+		conn.send(np.asarray(1, dtype=np.int32))
+		return 1
 
-			yenData = yenData.transpose()
+	def cmdLog(self, conn, pkt, ipkt, size):
+		"""ログ出力"""
+		stepBytes = 8
+		tickTime = int(np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int64)))
+		ipkt += stepBytes
+		candleTime = int(np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int64)))
+		ipkt += stepBytes
 
-			m = s.fxMinData[-1]
-			index = int(np.searchsorted(minData, int(m)))
+		print(datetime.datetime.utcfromtimestamp(tickTime))
 
-			# 追加開始インデックスと追加データ数計算、実際に追加されるのは１つ後のデータからとなる
-			index += 1
-			n = count - index
-			if n < 0:
-				n = 0
-
-			# 現在保持しているデータ最後尾に対応するデータを上書き
-			s.fxYenData[-1] = yenData[index - 1]
-			#print("set: ", yenData[index - 1])
-
-			# 追加するデータがあるなら追加する
-			if n != 0:
-				maxDataCount = 50000 * 2 # 1ヶ月分ほど蓄える
-				yens = s.fxYenData
-				mins = s.fxMinData
-				if maxDataCount < yens.shape[0] + n:
-					# 最大データ数超えたら半分にする
-					n = yens.shape[0] + n - maxDataCount // 2
-					yens = yens[n:]
-					mins = mins[n:]
-				appendYens = yenData[index:]
-				yens = np.append(yens, appendYens)
-				s.fxYenData = np.reshape(yens, (yens.shape[0] / 4, 4))
-				s.fxMinData = np.append(mins, minData[index:])
-				#print("append: ", appendYens)
-
-				if s.fxYenDataTrain is None:
-					s.fxYenDataTrain = s.fxYenData
-
-			conn.send(np.asarray(1, dtype=np.int32))
-			return 1
-		elif cmdType == 4:
-			# 現在受け取ってるドル円データで未来を予測する
-			data = s.mk.fxPrediction()
-			conn.send(data)
-			return 1
-		elif cmdType == 5:
-			# 予測値の合成係数の取得
-			#if size < 8:
-			#	conn.send(np.asarray(0, dtype=np.int32))
-			#	return 0
-			#k = float(pkt[ipkt : ipkt + 8].view(dtype=np.float64))
-			#s.initAveYenKs(k)
-			#print(k)
-			#conn.send(np.asarray(1, dtype=np.int32))
-			#return 1
-			conn.send(np.asarray(1, dtype=np.int32))
-			return 1
-
-		return 0
+		conn.send(np.asarray(1, dtype=np.int32))
+		return 1

@@ -1,15 +1,16 @@
-#pragma once
-#ifndef __JUNK_JUNKCONFIG_H
-#define __JUNK_JUNKCONFIG_H
+﻿#pragma once
+#ifndef __JUNK_JUNKCONFIG_H__
+#define __JUNK_JUNKCONFIG_H__
 
 #include <assert.h>
 #include <ctype.h>
 #include <stddef.h>
+#include <stdint.h>
 
 // ネームスペース用マクロ
-#define _JUNK_BEGIN namespace Junk {
+#define _JUNK_BEGIN namespace jk {
 #define _JUNK_END }
-#define _JUNK_USING using namespace Junk;
+#define _JUNK_USING using namespace jk;
 
 // DLLエクスポート、インポート設定用マクロ
 //  _JUNK_EXPORTS が定義されている場合はDLLエクスポート用コンパイル
@@ -35,45 +36,45 @@
 #define _FINLINE inline __forceinline
 #endif
 
+//// ビット数を明確にした整数型宣言
+//#ifndef _STDINT
+//typedef char int8_t;
+//typedef short int16_t;
+//typedef int int32_t;
+//typedef unsigned char uint8_t;
+//typedef unsigned short uint16_t;
+//typedef unsigned int uint32_t;
+//#if defined __GNUC__
+//typedef signed long long int64_t;
+//typedef unsigned long long uint64_t;
+//#elif defined  _MSC_VER
+//typedef __int64 int64_t;
+//typedef unsigned __int64 uint64_t;
+//#endif
+//#endif
+//
+//// ポインタサイズと同じビット数になる整数型宣言
+//#if defined __GNUC__
+//#ifdef __x86_64__
+//typedef long long intptr_t;
+//typedef unsigned long long UIntPtr;
+//#else
+//typedef int intptr_t;
+//typedef unsigned int UIntPtr;
+//#endif
+//#elif defined  _MSC_VER
+//#ifdef _WIN64
+//typedef __int64 intptr_t;
+//typedef unsigned __int64 UIntPtr;
+//#else
+//typedef int intptr_t;
+//typedef unsigned int UIntPtr;
+//#endif
+//#endif
+
 _JUNK_BEGIN
-
-// ビット数を明確にした整数型宣言
-typedef char int8;
-typedef short int16;
-typedef int int32;
-typedef unsigned char uint8;
-typedef unsigned short uint16;
-typedef unsigned int uint32;
-#if defined __GNUC__
-typedef signed long long int64;
-typedef unsigned long long uint64;
-#elif defined  _MSC_VER
-typedef __int64 int64;
-typedef unsigned __int64 uint64;
-#endif
-
-// ポインタサイズと同じビット数になる整数型宣言
-#if defined __GNUC__
-#ifdef __x86_64__
-typedef long long IntPtr;
-typedef unsigned long long UIntPtr;
-#else
-typedef int IntPtr;
-typedef unsigned int UIntPtr;
-#endif
-#elif defined  _MSC_VER
-#ifdef _WIN64
-typedef __int64 IntPtr;
-typedef unsigned __int64 UIntPtr;
-#else
-typedef int IntPtr;
-typedef unsigned int UIntPtr;
-#endif
-#endif
-
-// 整数型で bool の代わり
-typedef IntPtr ibool;
-
+//! bool 型を使うと遅いことがあるのでアーキテクチャのbit数に合わせたもの
+typedef intptr_t ibool;
 _JUNK_END
 
 #endif
