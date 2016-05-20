@@ -16,6 +16,10 @@ elif s.mode == "server":
 elif s.mode == "testhr":
 	# 的中率計測モード
 	s.mk.testhr()
+elif s.mode == "trainhr":
+	# 学習＆的中率計測モード
+	f.train()
+	s.mk.testhr()
 elif s.mode == "testhr_g":
 	# 的中率計測結果表示モード
 	f.testhr_g()

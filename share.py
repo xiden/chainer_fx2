@@ -80,6 +80,7 @@ parser.add_argument('--epoch', '-e', default='', help='目標エポック数、I
 parser.add_argument('--train', '-t', default='', help='追加学習エポック数、INIファイルの目標エポック数が書き換わる')
 parser.add_argument('--dataset', '-d', default='', help='データセット選択INIファイルも書き換わる、 0_5000_10000 の様に指定する、0が番号(負数なら最古データ)、5000が最小データ数、10000が最大データ数')
 parser.add_argument('--nettype', '-n', default='', help='ニューラルネットワークタイプ名、INIファイルも書き換わる')
+parser.add_argument('--backupEpoch', '-b', default='', help='学習完了時エポックデータをバックアップするかどうか、INIファイルも書き換わる')
 
 args = parser.parse_args()
 configFileName = path.join("Configs", args.iniFileName)
@@ -110,6 +111,7 @@ adamAlpha = configIni.getFloat("adamAlpha", "0.001") # Adamアルゴリズムの
 adaDeltaRho = configIni.getFloat("adaDeltaRho", "0.95") # AdaDeltaアルゴリズムのrho値
 adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴリズムのeps値
 serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
+backupEpoch = configIni.getInt("backupEpoch", "1") # 学習完了時エポックデータをバックアップするかどうか
 
 # コマンドライン引数によるINI設定のオーバーライド
 if len(args.mode) != 0:
@@ -127,6 +129,9 @@ if len(args.nettype) != 0:
 if len(args.grEnable) != 0:
 	grEnable = int(args.grEnable) # グラフ表示オーバーライド
 	configIni.set("grEnable", grEnable)
+if len(args.backupEpoch) != 0:
+	backupEpoch = int(args.backupEpoch) # バックアップ処理オーバーライド
+	configIni.set("backupEpoch", backupEpoch)
 
 # その他グローバル変数初期化
 inMA = (inMA // 2) * 2 + 1 # 入力値移動平均サイズを奇数にする
@@ -160,6 +165,7 @@ resultRootDir = "Results" # プロジェクト結果保存用ルートディレ�
 resultConfigDir = path.join(resultRootDir, path.splitext(path.basename(configFileName))[0]) # 設定ファイル別の結果保存ディレクトリ名
 resultTestDir = None # 試験設定別結果保存ディレクトリ名
 resultHrDir = None # 的中率結果保存ディレクトリ名
+sharedDataset = None # アプリ全体で共有する学習用データセット
 
 # ネットワークモデルの種類により大域的に変わる処理の初期化を行う
 netClassDef = getattr(net, netType)

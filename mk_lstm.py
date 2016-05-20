@@ -187,7 +187,7 @@ def initGraph(windowCaption):
 			subPlot1.axvline(x=s.minPredLen, color='blue')
 			gxIn = np.arange(0, s.minEvalLen, 1)
 			gyIn = np.zeros(s.minEvalLen)
-		elif s.mode == "testhr":
+		elif s.mode == "testhr" or s.mode == "trainhr":
 			gxIn = np.arange(0, 2, 1)
 			gyIn = np.zeros(2)
 
@@ -206,7 +206,7 @@ def initGraph(windowCaption):
 		glOut, = subPlot2.plot(gxOut, gyOut, label="out")
 		glTeachDelta, = subPlot3.plot(gxTeachDelta, gyTeachDelta, label="trg")
 		glOutDelta, = subPlot3.plot(gxOutDelta, gyOutDelta, label="out", color='#5555ff')
-		if s.mode != "testhr":
+		if s.mode != "testhr" or s.mode != "trainhr":
 			glOutDelta2, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="out", color='#ff55ff')
 		glRet, = subPlot3.plot(gxOutDelta2, gyOutDelta2, label="outave", color='#ff0000')
 
@@ -374,12 +374,19 @@ def testhr():
 	"""指定データを現在のニューラルネットワークを使用し予測値部分の的中率を計測する"""
 
 	print('Hit rate test mode')
-	print("Loading data from  " + s.trainDataFile)
-	dataset = s.mk.readDataset(s.trainDataFile, s.inMA)
+
+	# 学習データ読み込み
+	dataset = f.loadDataset()
+
 	index = 0
 
-	# モデルに影響を与えないようにコピーする
-	evaluator = s.dnn.model.copy()  # to use different state
+	## モデルに影響を与えないようにコピーする
+	#evaluator = s.dnn.model.copy()  # to use different state
+	#evaluator.reset_state()  # initialize state
+	#evaluator.train = False  # dropout does nothing
+
+	# モデルを非学習モードにしてそのまま使用する
+	evaluator = s.dnn.model
 	evaluator.reset_state()  # initialize state
 	evaluator.train = False  # dropout does nothing
 

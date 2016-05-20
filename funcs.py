@@ -38,6 +38,18 @@ def trainInit(dataset):
 	s.quitNow = False
 	s.forceEval = False
 
+def loadDataset():
+	"""学習用データセットを読み込む"""
+
+	if s.sharedDataset is None:
+		print("Loading data from  " + s.trainDataFile)
+		s.sharedDataset = dataset = s.mk.readDataset(s.trainDataFile, s.inMA)
+		print("    length = {}".format(dataset.shape[0]))
+	else:
+		dataset = s.sharedDataset
+	return dataset
+
+
 def serverTrainInit(wholeLen):
 	"""サーバー用に指定された長さの学習データで学習に必要な変数を初期化する"""
 
@@ -224,10 +236,7 @@ def train():
 		return
 
 	# 学習データ読み込み
-	print("Loading data from  " + s.trainDataFile)
-	dataset = s.mk.readDataset(s.trainDataFile, s.inMA)
-	#dataset = cuda.to_gpu(dataset)
-	print("    length = {}".format(dataset.shape[0]))
+	dataset = loadDataset()
 
 	# 学習ループ関係変数初期化
 	trainInit(dataset)
@@ -291,12 +300,13 @@ def train():
 	# モデルとオプティマイザ保存
 	s.saveModelAndOptimizer()
 
-	# エポック別フォルダへコピー
-	print("Saving current epoch.")
-
-	epochDir = path.join(s.resultTestDir, "e" + str(s.curEpoch))
-	if not path.isdir(epochDir):
-		os.mkdir(epochDir)
-	shutil.copy(s.modelFile, epochDir)
-	shutil.copy(s.stateFile, epochDir)
-	shutil.copy(s.configFileName, epochDir)
+	if s.backupEpoch:
+		# エポック別フォルダへコピー
+		print("Saving current epoch.")
+		epochDir = path.join(s.resultTestDir, "e" + str(s.curEpoch))
+		if not path.isdir(epochDir):
+			os.mkdir(epochDir)
+		shutil.copy(s.modelFile, epochDir)
+		shutil.copy(s.stateFile, epochDir)
+		shutil.copy(s.configFileName, epochDir)
+		shutil.copy(s.testFilePath + ".ini", epochDir)

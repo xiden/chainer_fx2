@@ -152,7 +152,7 @@ def initGraph(windowCaption):
 		glIn4, = subPlot1.plot(gxIn, gyIn, label="close")
 		glOut, = subPlot2.plot(gxOut, gyOut, label="y")
 		
-		if s.mode == "testhr":
+		if s.mode == "testhr" or s.mode == "trainhr":
 			glErr, = subPlot2.plot(gxOut, gyOut, label="err", color='red')
 			glTeach, = subPlot2.plot(gxOut, gyOut, label="t", color='green')
 
@@ -300,12 +300,19 @@ def testhr():
 	"""指定データを現在のニューラルネットワークを使用し予測値部分の的中率を計測する"""
 
 	print('Hit rate test mode')
-	print("Loading data from  " + s.trainDataFile)
-	dataset = s.mk.readDataset(s.trainDataFile, s.inMA)
+
+	# 学習データ読み込み
+	dataset = f.loadDataset()
+
 	index = 0
 
-	# モデルに影響を与えないようにコピーする
-	evaluator = s.dnn.model.copy()  # to use different state
+	## モデルに影響を与えないようにコピーする
+	#evaluator = s.dnn.model.copy()  # to use different state
+	#evaluator.reset_state()  # initialize state
+	#evaluator.train = False  # dropout does nothing
+
+	# モデルを非学習モードにしてそのまま使用する
+	evaluator = s.dnn.model
 	evaluator.reset_state()  # initialize state
 	evaluator.train = False  # dropout does nothing
 
