@@ -81,6 +81,7 @@ parser.add_argument('--train', '-t', default='', help='追加学習エポック�
 parser.add_argument('--dataset', '-d', default='', help='データセット選択INIファイルも書き換わる、 0_5000_10000 の様に指定する、0が番号(負数なら最古データ)、5000が最小データ数、10000が最大データ数')
 parser.add_argument('--nettype', '-n', default='', help='ニューラルネットワークタイプ名、INIファイルも書き換わる')
 parser.add_argument('--backupEpoch', '-b', default='', help='学習完了時エポックデータをバックアップするかどうか、INIファイルも書き換わる')
+parser.add_argument('--datasetNoise', '-z', default='', help='データセットに加えるノイズ値範囲、INIファイルも書き換わる')
 
 args = parser.parse_args()
 configFileName = path.join("Configs", args.iniFileName)
@@ -112,6 +113,7 @@ adaDeltaRho = configIni.getFloat("adaDeltaRho", "0.95") # AdaDeltaアルゴリ�
 adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴリズムのeps値
 serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
 backupEpoch = configIni.getInt("backupEpoch", "1") # 学習完了時エポックデータをバックアップするかどうか
+datasetNoise = configIni.getFloat("datasetNoise", "0") # 学習データセットに加えるノイズ値範囲
 
 # コマンドライン引数によるINI設定のオーバーライド
 if len(args.mode) != 0:
@@ -132,6 +134,9 @@ if len(args.grEnable) != 0:
 if len(args.backupEpoch) != 0:
 	backupEpoch = int(args.backupEpoch) # バックアップ処理オーバーライド
 	configIni.set("backupEpoch", backupEpoch)
+if len(args.datasetNoise) != 0:
+	datasetNoise = float(args.datasetNoise) # データセットに加えるノイズ値範囲オーバーライド
+	configIni.set("datasetNoise", datasetNoise)
 
 # その他グローバル変数初期化
 inMA = (inMA // 2) * 2 + 1 # 入力値移動平均サイズを奇数にする

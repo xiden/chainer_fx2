@@ -61,13 +61,13 @@ class Dnn(object):
 		self.optimizer.update()
 
 
-def readDataset(filename, inMA):
+def readDataset(filename, inMA, noise):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
 	"""
-	return fxreader.readDataset(filename, inMA)
+	return fxreader.readDataset(filename, inMA, noise)
 
 def init(iniFileName):
 	"""クラス分類用の初期化を行う"""
@@ -164,40 +164,40 @@ def trainGetDataAndT(dataset, i):
 	"""学習データと教師データ取得"""
 	frameEnd = i + s.frameSize
 
-	# 教師値取得
-	# 既知の終値と未来の分足データ間で最も差が大きいものを教師とする
-	last = dataset[frameEnd - 1][3]
-	predData = dataset[frameEnd : frameEnd + s.predLen]
-	if s.predAve:
-		tmin = tmax = (predData * s.predMeanK).sum()
-	else:
-		tmin = predData.min()
-		tmax = predData.max()
-	dtmin = float(tmin - last)
-	dtmax = float(tmax - last)
-	t = dtmin if math.fabs(dtmax) < math.fabs(dtmin) else dtmax
-	t = int(round(100.0 * t * clsNum / clsSpan, 0))
-	if t < -clsNum:
-		t = -clsNum
-	elif clsNum < t:
-		t = clsNum
-	t += clsNum
-
 	## 教師値取得
-	## 既知の終値と未来の分足データの終値との差を教師とする
+	## 既知の終値と未来の分足データ間で最も差が大きいものを教師とする
 	#last = dataset[frameEnd - 1][3]
 	#predData = dataset[frameEnd : frameEnd + s.predLen]
 	#if s.predAve:
-	#	p = (predData * s.predMeanK).sum()
+	#	tmin = tmax = (predData * s.predMeanK).sum()
 	#else:
-	#	p = predData[-1][3]
-	#d = p - last
-	#t = int(round(100.0 * d * clsNum / clsSpan, 0))
+	#	tmin = predData.min()
+	#	tmax = predData.max()
+	#dtmin = float(tmin - last)
+	#dtmax = float(tmax - last)
+	#t = dtmin if math.fabs(dtmax) < math.fabs(dtmin) else dtmax
+	#t = int(round(100.0 * t * clsNum / clsSpan, 0))
 	#if t < -clsNum:
 	#	t = -clsNum
 	#elif clsNum < t:
 	#	t = clsNum
 	#t += clsNum
+
+	# 教師値取得
+	# 既知の終値と未来の分足データの終値との差を教師とする
+	last = dataset[frameEnd - 1][3]
+	predData = dataset[frameEnd : frameEnd + s.predLen]
+	if s.predAve:
+		p = (predData * s.predMeanK).sum()
+	else:
+		p = predData[-1][3]
+	d = p - last
+	t = int(round(100.0 * d * clsNum / clsSpan, 0))
+	if t < -clsNum:
+		t = -clsNum
+	elif clsNum < t:
+		t = clsNum
+	t += clsNum
 
 	# フレーム取得
 	# フレーム内の中間値が0になるようシフトする
@@ -322,6 +322,7 @@ def testhr():
 	hitcount = 0 # 教師と出力が一致した回数
 	hitnzcount = 0 # 教師と出力が0以外の時に一致した回数
 	sdcount = 0 # 教師と出力が同じ極性だった回数
+	distance = 0.0 # 教師値との差
 	zero = np.zeros(s.batchSize, dtype=np.float32)
 
 	xvals = dataset.transpose()
@@ -377,8 +378,9 @@ def testhr():
 		# 描画用データにセット
 		tvals[i : i + n] = tval = ta_cpu - clsNum
 		yvals[i : i + n] = yval = y.argmax(1) - clsNum
-		revs = np.less(tval * yval, 0) # 教師と出力の極性が逆フラグ
-		evals[i : i + n] = revs * (tval - yval) # 極性が逆の場合のみ誤差波形になるようにする
+		tyval = tval * yval
+		diff = tval - yval
+		evals[i : i + n] = np.less(tyval, 0) * diff # 極性が逆の場合のみ誤差波形になるようにする
 
 		# 的中率更新
 		i += n
@@ -386,9 +388,10 @@ def testhr():
 		nzs = eqs * np.not_equal(yval, 0)
 		hitcount += eqs.sum()
 		hitnzcount += nzs.sum()
-		sdcount += n - revs.sum()
+		sdcount += np.greater(tyval, 0).sum()
+		distance += float((diff ** 2).sum())
 
-		print("{0}: {1:.2f}%, {2:.2f}%, {3:.2f}%".format(i, 100.0 * hitcount / i, 100.0 * hitnzcount / i, 100.0 * sdcount / i))
+		print("{0}: {1:.2f}%, {2:.2f}%, {3:.2f}%, rms err {4:.2f}".format(i, 100.0 * hitcount / i, 100.0 * hitnzcount / i, 100.0 * sdcount / i, math.sqrt(distance / i)))
 
 		if loop % 100 == 0 or testLen <= i:
 			# 指定間隔または最終データ完了後に
@@ -420,9 +423,10 @@ def testhr():
 	hitRate = 100.0 * hitcount / testLen
 	nzhitRate = 100.0 * hitnzcount / testLen
 	sdRate = 100.0 * sdcount / testLen
-	print("{0:.2f}%, {1:.2f}%, {2:.2f}%".format(hitRate, nzhitRate, sdRate))
+	distance = math.sqrt(distance / testLen)
+	print("{0:.2f}%, {1:.2f}%, {2:.2f}%, rms err {3:.2f}".format(hitRate, nzhitRate, sdRate, distance))
 
-	f.writeTestHrStatCsv(s.curEpoch, hitRate, nzhitRate, sdRate)
+	f.writeTestHrStatCsv(s.curEpoch, hitRate, nzhitRate, sdRate, distance)
 
 	if s.grEnable:
 		plt.ioff() # 対話モードOFF

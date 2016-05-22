@@ -43,7 +43,7 @@ def loadDataset():
 
 	if s.sharedDataset is None:
 		print("Loading data from  " + s.trainDataFile)
-		s.sharedDataset = dataset = s.mk.readDataset(s.trainDataFile, s.inMA)
+		s.sharedDataset = dataset = s.mk.readDataset(s.trainDataFile, s.inMA, s.datasetNoise)
 		print("    length = {}".format(dataset.shape[0]))
 	else:
 		dataset = s.sharedDataset
@@ -95,7 +95,7 @@ def writeTestHrGraphCsv(xvals, tvals, yvals):
 		for i in range(tvals.shape[0]):
 			writer.writerow([xvals[0][i], xvals[1][i], xvals[2][i], xvals[3][i], tvals[i], yvals[i]])
 
-def writeTestHrStatCsv(epoch, hitRate, nonZeroHitRate, sameDirRate):
+def writeTestHrStatCsv(epoch, hitRate, nonZeroHitRate, sameDirRate, distance):
 	"""的中率統計CSVファイルへ書き込む.
 	Args:
 		epoch: エポック数.
@@ -106,8 +106,8 @@ def writeTestHrStatCsv(epoch, hitRate, nonZeroHitRate, sameDirRate):
 	with codecs.open(fname, 'a', "shift_jis") as file:
 		writer = csv.writer(file)
 		if not fileExists:
-			writer.writerow(["epoch", "hit rate[%]", "non zero hit rate[%]", "same dir rate[%]"])
-		writer.writerow([epoch, hitRate, nonZeroHitRate, sameDirRate])
+			writer.writerow(["epoch", "hit rate[%]", "non zero hit rate[%]", "same dir rate[%]", "rms err"])
+		writer.writerow([epoch, hitRate, nonZeroHitRate, sameDirRate, distance])
 
 def readTestHrCsv(filename):
 	"""指定された的中率テスト結果CSVを読み込む
@@ -184,36 +184,36 @@ def testhr_g():
 #@jit
 def trainFlowControl():
 	"""ユーザー入力による学習処理時の評価位置移動、終了要求などの共通制御処理"""
+	if s.grEnable:
+		# 評価範囲移動速度変更
+		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD1) & 0x8000) != 0:
+			s.evalIndexMove = 1
+		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD2) & 0x8000) != 0:
+			s.evalIndexMove = s.frameSize // 5
+		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD3) & 0x8000) != 0:
+			s.evalIndexMove = s.minEvalLen
 
-	# 評価範囲移動速度変更
-	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD1) & 0x8000) != 0:
-		s.evalIndexMove = 1
-	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD2) & 0x8000) != 0:
-		s.evalIndexMove = s.frameSize // 5
-	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD3) & 0x8000) != 0:
-		s.evalIndexMove = s.minEvalLen
-
-	# 評価範囲移動処理
-	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD4) & 0x8000) != 0:
-		s.evalIndex -= s.evalIndexMove
-		s.forceEval = True
-		if s.evalIndex < s.batchRangeStart:
+		# 評価範囲移動処理
+		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD4) & 0x8000) != 0:
+			s.evalIndex -= s.evalIndexMove
+			s.forceEval = True
+			if s.evalIndex < s.batchRangeStart:
+				s.evalIndex = s.batchRangeStart
+		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD6) & 0x8000) != 0:
+			s.evalIndex += s.evalIndexMove
+			s.forceEval = True
+			if s.batchRangeEnd < s.evalIndex:
+				s.evalIndex = s.batchRangeEnd
+		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD7) & 0x8000) != 0:
 			s.evalIndex = s.batchRangeStart
-	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD6) & 0x8000) != 0:
-		s.evalIndex += s.evalIndexMove
-		s.forceEval = True
-		if s.batchRangeEnd < s.evalIndex:
+			s.forceEval = True
+		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD9) & 0x8000) != 0:
 			s.evalIndex = s.batchRangeEnd
-	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD7) & 0x8000) != 0:
-		s.evalIndex = s.batchRangeStart
-		s.forceEval = True
-	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD9) & 0x8000) != 0:
-		s.evalIndex = s.batchRangeEnd
-		s.forceEval = True
+			s.forceEval = True
 
-	# 評価強制
-	if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD8) & 0x8000) != 0:
-		s.forceEval = True
+		# 評価強制
+		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD8) & 0x8000) != 0:
+			s.forceEval = True
 
 	# 終了判定処理
 	if (win32api.GetAsyncKeyState(win32con.VK_NUMLOCK) & 0x8000) != 0:
@@ -224,7 +224,7 @@ def trainFlowControl():
 	if s.requestQuit and (win32api.GetAsyncKeyState(win32con.VK_PAUSE) & 0x8000) != 0:
 		s.quitNow = True
 
-#@jit
+@jit
 def train():
 	"""学習モード処理"""
 

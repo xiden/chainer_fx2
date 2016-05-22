@@ -90,13 +90,13 @@ def decode(v):
 def decodeArray(v):
 	return v * 20.0 + 110.0
 
-def readDataset(filename, inMA):
+def readDataset(filename, inMA, noise):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
 	"""
-	return encodeArray(fxreader.readDataset(filename, inMA))
+	return encodeArray(fxreader.readDataset(filename, inMA, noise))
 
 def initAveYenKs(k):
 	"""未来予測データの１階～４階微分の合成係数の初期化、指定可能範囲は 0.0 < startK < 1.0、数値が大きい程未来の値の割合が大きくなる"""

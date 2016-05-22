@@ -6,7 +6,7 @@ import os.path as path
 import numpy as np
 import share as s
 
-def readDataset(filename, inMA):
+def readDataset(filename, inMA, noise):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
@@ -19,6 +19,7 @@ def readDataset(filename, inMA):
 		if s.trainDataDummy == "line":
 			# 直線データ作成
 			data = np.arange(0, 10000, 1)
+			data += np.random.uniform(-noise, noise, data.shape)
 		elif s.trainDataDummy == "sin":
 			# sin関数でダミーデータ作成
 			data = []
@@ -30,6 +31,7 @@ def readDataset(filename, inMA):
 				data.append(t)
 				data.append(t)
 				data.append(t)
+			data += np.random.uniform(-noise, noise, data.shape)
 		elif s.trainDataDummy == "sweep":
 			# sin関数でダミーデータ作成
 			data = []
@@ -42,15 +44,29 @@ def readDataset(filename, inMA):
 				data.append(t)
 				data.append(t)
 				delta += ddelta
+			data += np.random.uniform(-noise, noise, data.shape)
 		else:
 			# 円データをそのまま使用する
 			dr = csv.reader(f)
 			data = []
 			for row in dr:
-				data.append(float(row[2]))
-				data.append(float(row[3]))
-				data.append(float(row[4]))
-				data.append(float(row[5]))
+				o = float(row[2])
+				h = float(row[3])
+				l = float(row[4])
+				c = float(row[5])
+				if noise:
+					o += random.uniform(-noise, noise)
+					h += random.uniform(-noise, noise)
+					l += random.uniform(-noise, noise)
+					c += random.uniform(-noise, noise)
+					if h < o: h = o
+					if h < c: h = c
+					if l > o: l = o
+					if l > c: l = c
+				data.append(o)
+				data.append(h)
+				data.append(l)
+				data.append(c)
 
 		## 円変化量を使用する
 		#dr = csv.reader(f)
