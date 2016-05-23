@@ -164,8 +164,8 @@ batchRangeEnd = 0 # 学習時バッチ処理終了インデックス番号
 batchIndices = 0 # 学習時バッチ処理インデックス番号配列
 batchOffsetInitial = 0 # 学習時バッチ処理の初期オフセット
 batchOffset = 0 # 学習時バッチ処理の現在オフセット
-n_in = 0 # ニューラルネットの入力次元数
-n_out = 0 # ニューラルネットの出力次元数
+dnnIn = 0 # ニューラルネットの入力次元数
+dnnOut = 0 # ニューラルネットの出力次元数
 resultRootDir = "Results" # プロジェクト結果保存用ルートディレクトリ名
 resultConfigDir = path.join(resultRootDir, path.splitext(path.basename(configFileName))[0]) # 設定ファイル別の結果保存ディレクトリ名
 resultTestDir = None # 試験設定別結果保存ディレクトリ名
@@ -229,7 +229,7 @@ if mode != "testhr_g":
 	mk.initGraph(testFileName + ": " + trainDataFile)
 
 	# ネットワークモデルの初期化
-	model.create(n_in, numUnits, n_out, gpu, True)
+	model.create(dnnIn, numUnits, dnnOut, gpu, True)
 	dnn.model = model
 	if netInitParamRandom:
 		for param in dnn.model.params():

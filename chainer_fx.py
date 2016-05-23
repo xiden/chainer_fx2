@@ -24,4 +24,4 @@ elif s.mode == "testhr_g":
 	# 的中率計測結果表示モード
 	f.testhr_g()
 else:
-	print("Unknown mode " + mode)
+	print("Unknown mode " + s.mode)

@@ -1,6 +1,7 @@
 ﻿#!/usr/bin/env python
 # -*- coding: utf-8 -*- 
 
+import sys
 import time
 import math
 import numpy as np
@@ -19,9 +20,13 @@ import funcs as f
 clsNum = 0 # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 clsSpan = 0 # クラス分け方でのスパン(pips)
 dropoutRatio = 0.5 # ドロップアウト率
+offsetMode = None # 切り出した学習エリア値に対するオフセットモード
+datasetExtract = None # データセットの抽出方法
 fxRetMaSize = 0 # クライアントへ返す第二値の移動平均サイズ
 fxRetMaSig = 0 # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
 fxRetMaSizeK = None
+trainDataOffset = None
+trainDataExtract = None
 
 subPlot1 = None
 subPlot2 = None
@@ -74,16 +79,39 @@ def init(iniFileName):
 	global clsNum
 	global clsSpan
 	global dropoutRatio
+	global offsetMode
+	global datasetExtract
 	global fxRetMaSize
 	global fxRetMaSig
 	global fxRetMaSizeK
+	global trainDataOffset
+	global trainDataExtract
 
 	configIni = ini.file(iniFileName, "CLAS")
 	clsNum = configIni.getInt("clsNum", "3") # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 	clsSpan = configIni.getFloat("clsSpan", "3") # クラス分け方でのスパン(pips)
 	dropoutRatio = configIni.getFloat("dropoutRatio", "0.5") # ドロップアウト率
+	offsetMode = configIni.getStr("offsetMode", "average") # 切り出した学習エリア値に対するオフセットモード
+	datasetExtract = configIni.getStr("datasetExtract", "all") # データセットの抽出方法
 	fxRetMaSize = configIni.getInt("fxRetMaSize", "5") # クライアントへ返す第二値の移動平均サイズ
 	fxRetMaSig = configIni.getInt("fxRetMaSig", "3") # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
+
+	# INIにより関数振り分け
+	if offsetMode == "average":
+		trainDataOffset = trainDataOffsetAverage
+	elif offsetMode == "center":
+		trainDataOffset = trainDataOffsetCenter
+	else:
+		print("Unknown offsetMode :", offsetMode)
+		sys.exit()
+
+	if datasetExtract == "all":
+		trainDataExtract = trainDataExtractAll
+	elif datasetExtract == "open":
+		trainDataExtract = trainDataExtractOpen
+	else:
+		print("Unknown trainDataExtract :", trainDataExtract)
+		sys.exit()
 
 	# 移動平均（ガウシアン）のカーネル計算
 	fxRetMaSize = (fxRetMaSize // 2) * 2 + 1
@@ -93,8 +121,15 @@ def init(iniFileName):
 
 	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
-	s.n_in = s.frameSize * 4 # ニューラルネットの入力次元数
-	s.n_out = clsNum * 2 + 1 # ニューラルネットの出力次元数
+
+	# ニューラルネットの入力次元数
+	if trainDataExtract == trainDataExtractOpen:
+		s.dnnIn = s.frameSize 
+	else:
+		s.dnnIn = s.frameSize * 4
+	# ニューラルネットの出力次元数
+	s.dnnOut = clsNum * 2 + 1
+
 	s.fxRetLen = 3 # クライアントに返す結果データ長
 	s.fxInitialYenDataLen = s.frameSize # 初期化時にMT4から送る必要がある円データ数
 
@@ -131,7 +166,7 @@ def initGraph(windowCaption):
 		subPlot2.axhline(y=0, color='black')
 
 		gxOut = np.arange(-clsNum, clsNum + 1, 1)
-		gyOut = np.zeros(s.n_out)
+		gyOut = np.zeros(s.dnnOut)
 
 		if s.mode == "server":
 			subPlot1.set_xlim([0, s.minPredLen])
@@ -157,7 +192,19 @@ def initGraph(windowCaption):
 			glTeach, = subPlot2.plot(gxOut, gyOut, label="t", color='green')
 
 def getTestFileName(testFileName):
-	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan)
+	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan) + datasetExtract
+
+def trainDataOffsetAverage(x):
+	return x - np.average(x)
+
+def trainDataOffsetCenter(x):
+	return x - (x.max() + x.min()) * 0.5
+
+def trainDataExtractAll(x, n):
+	return np.reshape(x, (n * 4,))
+
+def trainDataExtractOpen(x, n):
+	return x[:n,0]
 
 #@jit
 def trainGetDataAndT(dataset, i):
@@ -184,13 +231,13 @@ def trainGetDataAndT(dataset, i):
 	#t += clsNum
 
 	# 教師値取得
-	# 既知の終値と未来の分足データの終値との差を教師とする
-	last = dataset[frameEnd - 1][3]
+	# 既知の終値と未来の分足データの開始値との差を教師とする
+	last = dataset[frameEnd - 1, 3]
 	predData = dataset[frameEnd : frameEnd + s.predLen]
 	if s.predAve:
 		p = (predData * s.predMeanK).sum()
 	else:
-		p = predData[-1][3]
+		p = predData[-1, 0]
 	d = p - last
 	t = int(round(100.0 * d * clsNum / clsSpan, 0))
 	if t < -clsNum:
@@ -200,28 +247,26 @@ def trainGetDataAndT(dataset, i):
 	t += clsNum
 
 	# フレーム取得
-	# フレーム内の中間値が0になるようシフトする
+	# フレーム内の値をシフト
 	x = dataset[i : frameEnd]
-	x = np.reshape(x, (s.frameSize * 4,))
-	x = x - (x.max() + x.min()) * 0.5
-	#x = x - (x.sum() / s.frameSize)
+	x = trainDataExtract(x, s.frameSize)
+	x = trainDataOffset(x)
 	return x, t
 
 #@jit
 def fxGetData(dataset):
 	"""学習データのみ取得"""
 	# フレーム取得
-	# フレーム内の中間値が0になるようシフトする
+	# フレーム内の値をシフト
 	x = dataset[-s.frameSize:]
-	x = np.reshape(x, (s.frameSize * 4,))
-	x = x - (x.max() + x.min()) * 0.5
-	#x = x - (x.sum() / s.frameSize)
+	x = trainDataExtract(x, s.frameSize)
+	x = trainDataOffset(x)
 	return x
 
 #@jit
 def trainGetBatchs(dataset):
 	# 学習データと教師データ取得
-	xa_cpu = np.zeros(shape=(s.batchSize, s.n_in), dtype=np.float32)
+	xa_cpu = np.zeros(shape=(s.batchSize, s.dnnIn), dtype=np.float32)
 	ta_cpu = np.zeros(shape=(s.batchSize,), dtype=np.int32)
 	for bi in range(s.batchSize):
 		xa_cpu[bi][...], ta_cpu[bi] = trainGetDataAndT(dataset, s.batchStartIndices[bi])
@@ -284,8 +329,8 @@ def trainEvaluate(dataset, index):
 		glOut.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
-		subPlot1.set_ylim(f.npMaxMin(xvals))
-		subPlot2.set_ylim(f.npMaxMin(yvals))
+		subPlot1.set_ylim(f.npMaxMin([xvals]))
+		subPlot2.set_ylim(f.npMaxMin([yvals]))
 		plt.draw()
 		plt.pause(0.001)
 
@@ -367,7 +412,7 @@ def testhr():
 		n = testLen - i
 		if s.batchSize < n:
 			n = s.batchSize
-		xa_cpu = np.zeros(shape=(n, s.n_in), dtype=np.float32)
+		xa_cpu = np.zeros(shape=(n, s.dnnIn), dtype=np.float32)
 		ta_cpu = np.zeros(shape=(n,), dtype=np.int32)
 		for bi in range(n):
 			xa_cpu[bi][...], ta_cpu[bi] = trainGetDataAndT(dataset, i + bi)
@@ -473,8 +518,8 @@ def fxPrediction():
 		glOut.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
-		subPlot1.set_ylim(f.npMaxMin(xvals))
-		subPlot2.set_ylim(f.npMaxMin(yvals))
+		subPlot1.set_ylim(f.npMaxMin([xvals]))
+		subPlot2.set_ylim(f.npMaxMin([yvals]))
 		plt.draw()
 		plt.pause(0.001)
 

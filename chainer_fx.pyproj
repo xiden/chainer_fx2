@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>test9.ini -t10 -d0_1000_5000</CommandLineArguments>
+    <CommandLineArguments>squeezeAve2.ini -t1 -d0_10000_50000</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -68,6 +68,9 @@
     <Content Include="Configs\semiLight.ini" />
     <Content Include="Configs\semiLightStep2.ini" />
     <Content Include="Configs\sin.ini" />
+    <Content Include="Configs\squeezeAve2.ini" />
+    <Content Include="Configs\squeezeAve.ini" />
+    <Content Include="Configs\squeeze.ini" />
     <Content Include="Configs\test9.ini" />
     <Content Include="Configs\test8.ini" />
     <Content Include="Configs\test7.ini" />

@@ -69,6 +69,7 @@ def snapShotPredictionModel():
 
 #@jit
 def npMaxMin(arrays):
+	"""指定された複数の配列の最大最小を取得する"""
 	rmax = float(arrays[0].max())
 	rmin = float(arrays[0].min())
 	for i in range(1, len(arrays)):

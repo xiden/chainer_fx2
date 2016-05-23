@@ -131,8 +131,8 @@ def init(iniFileName):
 	outDeltaLen = outLen - outDeltaMA # 出力値微分値の移動平均後の長さ
 	s.minPredLen = s.frameSize + (bpropLen - 1) * bpropStep # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
-	s.n_in = s.frameSize # ニューラルネットの入力次元数
-	s.n_out = 1 # ニューラルネットの出力次元数
+	s.dnnIn = s.frameSize # ニューラルネットの入力次元数
+	s.dnnOut = 1 # ニューラルネットの出力次元数
 	s.fxRetLen = outDeltaLen - 1 # クライアントに返す結果データ長
 	s.fxInitialYenDataLen = s.minEvalLen * 3 # 初期化時にMT4から送る必要がある円データ数
 
@@ -233,8 +233,8 @@ def trainBatch(dataset, itr):
 	accumLoss = 0
 	for i in range(bpropLen):
 		# 学習データと教師データ取得
-		xa = s.xp.zeros(shape=(s.batchSize, s.n_in), dtype=np.float32)
-		ta = s.xp.zeros(shape=(s.batchSize, s.n_out), dtype=np.float32)
+		xa = s.xp.zeros(shape=(s.batchSize, s.dnnIn), dtype=np.float32)
+		ta = s.xp.zeros(shape=(s.batchSize, s.dnnOut), dtype=np.float32)
 		offset = i * bpropStep
 		for bi in range(s.batchSize):
 			xa[bi][:], ta[bi][:] = trainGetDataAndT(dataset, s.batchStartIndices[bi] + offset)
@@ -359,7 +359,7 @@ def trainEvaluate(dataset, index, onlyAveDYVals = False):
 		fxLastD2YVals = d2yvals
 
 		subPlot1.set_xlim(0, s.minEvalLen)
-		subPlot1.set_ylim(f.npMaxMin(xvals))
+		subPlot1.set_ylim(f.npMaxMin([xvals]))
 		subPlot2.set_xlim([0, outLen * bpropStep])
 		subPlot2.set_ylim(f.npMaxMin([tvals, yvals]))
 		subPlot3.set_xlim([0, outLen * bpropStep])
@@ -422,7 +422,7 @@ def testhr():
 		subPlot1.set_xlim(0, dataset.shape[0])
 		subPlot2.set_xlim([0, dataset.shape[0]])
 		subPlot3.set_xlim([0, dataset.shape[0]])
-		subPlot1.set_ylim(f.npMaxMin(dataset))
+		subPlot1.set_ylim(f.npMaxMin([dataset]))
 
 	while testPos <= testEnd:
 		# 学習データ取得
