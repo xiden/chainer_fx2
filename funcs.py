@@ -225,7 +225,7 @@ def trainFlowControl():
 	if s.requestQuit and (win32api.GetAsyncKeyState(win32con.VK_PAUSE) & 0x8000) != 0:
 		s.quitNow = True
 
-@jit
+#@jit
 def train():
 	"""学習モード処理"""
 
@@ -267,6 +267,7 @@ def train():
 		# ニューラルネットワーク更新
 		if not s.quitNow:
 			s.dnn.update(accumLoss)
+			del(accumLoss)
 
 			# 時間計測＆残り時間表示
 			if itr % s.itrCountInterval == 0:
@@ -293,10 +294,6 @@ def train():
 					s.batchOffset = 0
 
 		itr += 1
-
-	# INIファイルへ保存
-	#if s.optm == "Adam":
-	#	s.configIni.set("learningRrate", s.dnn.optimizer.lr)
 
 	# モデルとオプティマイザ保存
 	s.saveModelAndOptimizer()

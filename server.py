@@ -181,13 +181,13 @@ class Server(threading.Thread):
 
 		yenData = np.zeros((4, n), dtype=np.float32)
 
-		yenData[0][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		yenData[0,:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
 		ipkt += stepBytes
-		yenData[1][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		yenData[1,:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
 		ipkt += stepBytes
-		yenData[2][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		yenData[2,:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
 		ipkt += stepBytes
-		yenData[3][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		yenData[3,:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
 		ipkt += stepBytes
 		s.fxMinData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
 
@@ -209,13 +209,13 @@ class Server(threading.Thread):
 
 		yenData = np.zeros((4, count), dtype=np.float32)
 
-		yenData[0][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		yenData[0,:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
 		ipkt += stepBytes
-		yenData[1][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		yenData[1,:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
 		ipkt += stepBytes
-		yenData[2][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		yenData[2,:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
 		ipkt += stepBytes
-		yenData[3][:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
+		yenData[3,:] = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.float32))
 		ipkt += stepBytes
 		minData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
 

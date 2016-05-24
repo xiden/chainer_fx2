@@ -191,6 +191,9 @@ def initGraph(windowCaption):
 			glErr, = subPlot2.plot(gxOut, gyOut, label="err", color='red')
 			glTeach, = subPlot2.plot(gxOut, gyOut, label="t", color='green')
 
+		subPlot1.legend(loc='lower left') # 凡例表示
+		subPlot2.legend(loc='lower left') # 凡例表示
+
 def getTestFileName(testFileName):
 	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan) + datasetExtract
 
@@ -213,7 +216,7 @@ def trainGetDataAndT(dataset, i):
 
 	## 教師値取得
 	## 既知の終値と未来の分足データ間で最も差が大きいものを教師とする
-	#last = dataset[frameEnd - 1][3]
+	#last = dataset[frameEnd - 1,3]
 	#predData = dataset[frameEnd : frameEnd + s.predLen]
 	#if s.predAve:
 	#	tmin = tmax = (predData * s.predMeanK).sum()
@@ -269,7 +272,7 @@ def trainGetBatchs(dataset):
 	xa_cpu = np.zeros(shape=(s.batchSize, s.dnnIn), dtype=np.float32)
 	ta_cpu = np.zeros(shape=(s.batchSize,), dtype=np.int32)
 	for bi in range(s.batchSize):
-		xa_cpu[bi][...], ta_cpu[bi] = trainGetDataAndT(dataset, s.batchStartIndices[bi])
+		xa_cpu[bi,:], ta_cpu[bi] = trainGetDataAndT(dataset, s.batchStartIndices[bi])
 	return chainer.Variable(cuda.to_gpu(xa_cpu)), chainer.Variable(cuda.to_gpu(ta_cpu))
 
 #@jit
@@ -287,7 +290,6 @@ def trainBatch(dataset, itr):
 	# 評価処理
 	if (itr % s.evalInterval == 0) or s.forceEval:
 		print('evaluate')
-		now = time.time()
 		perp = trainEvaluate(dataset, s.evalIndex)
 		print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
 		#if 1 <= itr and s.optm == "Adam":
@@ -329,7 +331,7 @@ def trainEvaluate(dataset, index):
 		glOut.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
-		subPlot1.set_ylim(f.npMaxMin([xvals]))
+		subPlot1.set_ylim(f.npMaxMin(xvals))
 		subPlot2.set_ylim(f.npMaxMin([yvals]))
 		plt.draw()
 		plt.pause(0.001)
@@ -349,8 +351,6 @@ def testhr():
 	# 学習データ読み込み
 	dataset = f.loadDataset()
 
-	index = 0
-
 	## モデルに影響を与えないようにコピーする
 	#evaluator = s.dnn.model.copy()  # to use different state
 	#evaluator.reset_state()  # initialize state
@@ -361,22 +361,16 @@ def testhr():
 	evaluator.reset_state()  # initialize state
 	evaluator.train = False  # dropout does nothing
 
-	testPos = 0
 	testLen = dataset.shape[0] - s.minEvalLen
-	count = 0
 	hitcount = 0 # 教師と出力が一致した回数
 	hitnzcount = 0 # 教師と出力が0以外の時に一致した回数
 	sdcount = 0 # 教師と出力が同じ極性だった回数
 	distance = 0.0 # 教師値との差
-	zero = np.zeros(s.batchSize, dtype=np.float32)
 
 	xvals = dataset.transpose()
 	tvals = np.zeros(testLen, dtype=np.int32)
 	yvals = np.zeros(testLen, dtype=np.int32)
 	evals = np.zeros(testLen, dtype=np.int32)
-	htrates = np.zeros(testLen, dtype=np.float32)
-	htzrates = np.zeros(testLen, dtype=np.float32)
-	sdrates = np.zeros(testLen, dtype=np.float32)
 
 	if s.grEnable:
 		gxIn = np.arange(0, testLen, 1)
@@ -388,15 +382,15 @@ def testhr():
 		glErr.set_xdata(gxOut)
 		glErr.set_ydata(evals)
 		glIn1.set_xdata(gxIn)
-		glIn1.set_ydata(xvals[0][:testLen])
+		glIn1.set_ydata(xvals[0,:testLen])
 		glIn2.set_xdata(gxIn)
-		glIn2.set_ydata(xvals[1][:testLen])
+		glIn2.set_ydata(xvals[1,:testLen])
 		glIn3.set_xdata(gxIn)
-		glIn3.set_ydata(xvals[2][:testLen])
+		glIn3.set_ydata(xvals[2,:testLen])
 		glIn4.set_xdata(gxIn)
-		glIn4.set_ydata(xvals[3][:testLen])
+		glIn4.set_ydata(xvals[3,:testLen])
 		subPlot1.set_xlim(0, testLen)
-		subPlot1.set_ylim(f.npMaxMin([xvals[0][:testLen], xvals[1][:testLen], xvals[2][:testLen], xvals[3][:testLen]]))
+		subPlot1.set_ylim(f.npMaxMin([xvals[0,:testLen], xvals[1,:testLen], xvals[2,:testLen], xvals[3,:testLen]]))
 		subPlot2.set_xlim(0, testLen)
 		subPlot1.legend(loc='lower left') # 凡例表示
 		subPlot2.legend(loc='lower left') # 凡例表示
@@ -415,12 +409,12 @@ def testhr():
 		xa_cpu = np.zeros(shape=(n, s.dnnIn), dtype=np.float32)
 		ta_cpu = np.zeros(shape=(n,), dtype=np.int32)
 		for bi in range(n):
-			xa_cpu[bi][...], ta_cpu[bi] = trainGetDataAndT(dataset, i + bi)
+			xa_cpu[bi,:], ta_cpu[bi] = trainGetDataAndT(dataset, i + bi)
 		# ニューラルネットを通す
 		y = evaluator(chainer.Variable(cuda.to_gpu(xa_cpu), volatile='on'))
 		y = cuda.to_cpu(y.data)
 
-		# 描画用データにセット
+		# 的中率計算用＆描画用データにセット
 		tvals[i : i + n] = tval = ta_cpu - clsNum
 		yvals[i : i + n] = yval = y.argmax(1) - clsNum
 		tyval = tval * yval
@@ -477,7 +471,7 @@ def testhr():
 		plt.ioff() # 対話モードOFF
 		plt.show()
 
-##@jit
+#@jit
 def fxPrediction():
 	"""現在の円データから予測する"""
 

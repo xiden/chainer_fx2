@@ -23,28 +23,26 @@ def readDataset(filename, inMA, noise):
 		elif s.trainDataDummy == "sin":
 			# sin関数でダミーデータ作成
 			data = []
-			delta = math.pi / 100.0
+			delta = math.pi / 30.0
 			for i in range(3000):
 				#t = math.sin(i * delta) + random.uniform(-0.05, 0.05)
-				t = math.sin(i * delta)
-				data.append(t)
-				data.append(t)
-				data.append(t)
-				data.append(t)
-			data += np.random.uniform(-noise, noise, data.shape)
+				t = 110.0 + math.sin(i * delta) * 10.0
+				data.append(t + random.uniform(-noise, noise))
+				data.append(t + random.uniform(-noise, noise))
+				data.append(t + random.uniform(-noise, noise))
+				data.append(t + random.uniform(-noise, noise))
 		elif s.trainDataDummy == "sweep":
 			# sin関数でダミーデータ作成
 			data = []
 			delta = math.pi / 100.0
 			ddelta = delta / 1000.0
-			for i in range(3000):
-				t = math.sin(i * delta) + random.uniform(-0.05, 0.05)
-				data.append(t)
-				data.append(t)
-				data.append(t)
-				data.append(t)
+			for i in range(10000):
+				t = 110.0 + math.sin(i * delta) * 1.0
+				data.append(t + random.uniform(-noise, noise))
+				data.append(t + random.uniform(-noise, noise))
+				data.append(t + random.uniform(-noise, noise))
+				data.append(t + random.uniform(-noise, noise))
 				delta += ddelta
-			data += np.random.uniform(-noise, noise, data.shape)
 		else:
 			# 円データをそのまま使用する
 			dr = csv.reader(f)

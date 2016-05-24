@@ -550,7 +550,7 @@ class NDDDDD(chainer.Chain):
 	def reset_state(self):
 		pass
 
-	##@jit
+	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
 		h2 = self.l2(F.dropout(F.relu(h1), ratio=c.dropoutRatio, train=self.train))
@@ -1020,7 +1020,94 @@ class NLN(chainer.Chain):
 	def getModelKind(self):
 		return "lstm"
 
-class LLLL(chainer.Chain):
+class N6ReluSqueezeL4(chainer.Chain):
+	def __init__(m):
+		pass
+
+	def create(m, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units
+		n_midunits2 = n_units // 2
+		n_midunits3 = n_units // 3
+		super().__init__(
+			n1=L.Linear(n_in, n_midunits),
+			n2=L.Linear(n_midunits, n_midunits),
+			n3=L.Linear(n_midunits, n_midunits2),
+			n4=L.Linear(n_midunits2, n_midunits3),
+			n5=L.Linear(n_midunits3, n_midunits3),
+			l1=L.LSTM(n_midunits3, n_midunits3),
+			l2=L.LSTM(n_midunits3, n_midunits3),
+			l3=L.LSTM(n_midunits3, n_midunits3),
+			l4=L.LSTM(n_midunits3, n_midunits3),
+			n6=L.Linear(n_midunits3, n_out),
+		)
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		m.l1.reset_state()
+		m.l2.reset_state()
+		m.l3.reset_state()
+		m.l4.reset_state()
+
+	#@jit(nopython=True)
+	def __call__(m, x):
+		h = F.relu(m.n1(x))
+		h = F.relu(m.n2(h))
+		h = F.relu(m.n3(h))
+		h = F.relu(m.n4(h))
+		h = F.relu(m.n5(h))
+		h = m.l1(F.dropout(h, train=m.train))
+		h = m.l2(F.dropout(h, train=m.train))
+		h = m.l3(F.dropout(h, train=m.train))
+		h = m.l4(F.dropout(h, train=m.train))
+		h = m.n6(h)
+		return h
+
+	def getModelKind(m):
+		return "lstm"
+
+class N6ReluSqueezeL2Squeeze(chainer.Chain):
+	def __init__(m):
+		pass
+
+	def create(m, n_in, n_units, n_out, gpu, train=True):
+		n_midunits = n_units
+		n_midunits2 = n_units // 2
+		n_midunits3 = n_units // 3
+		n_midunits4 = n_units // 4
+		super().__init__(
+			n1=L.Linear(n_in, n_midunits),
+			n2=L.Linear(n_midunits, n_midunits),
+			n3=L.Linear(n_midunits, n_midunits2),
+			n4=L.Linear(n_midunits2, n_midunits3),
+			n5=L.Linear(n_midunits3, n_midunits3),
+			l1=L.LSTM(n_midunits3, n_midunits4),
+			l2=L.LSTM(n_midunits4, n_midunits4),
+			n6=L.Linear(n_midunits4, n_out),
+		)
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		m.l1.reset_state()
+		m.l2.reset_state()
+
+	#@jit(nopython=True)
+	def __call__(m, x):
+		h = F.relu(m.n1(x))
+		h = F.relu(m.n2(h))
+		h = F.relu(m.n3(h))
+		h = F.relu(m.n4(h))
+		h = F.relu(m.n5(h))
+		h = m.l1(F.dropout(h, train=m.train))
+		h = m.l2(F.dropout(h, train=m.train))
+		h = m.n6(h)
+		return h
+
+	def getModelKind(m):
+		return "lstm"
+
+class L4(chainer.Chain):
 	def __init__(self):
 		pass
 
@@ -1042,11 +1129,11 @@ class LLLL(chainer.Chain):
 
 	#@jit
 	def __call__(self, x):
-		h1 = self.l1(x)
-		h2 = self.l2(F.dropout(h1, train=self.train))
-		h3 = self.l3(F.dropout(h2, train=self.train))
-		y = self.l4(F.dropout(h3, train=self.train))
-		return y
+		h = self.l1(x)
+		h = self.l2(F.dropout(h, train=self.train))
+		h = self.l3(F.dropout(h, train=self.train))
+		h = self.l4(F.dropout(h, train=self.train))
+		return h
 
 	def getModelKind(self):
 		return "lstm"

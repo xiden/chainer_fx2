@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>squeezeAve2.ini -t1 -d0_10000_50000</CommandLineArguments>
+    <CommandLineArguments>rnn1.ini -d0_5000_10000 -g1</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -71,6 +71,7 @@
     <Content Include="Configs\squeezeAve2.ini" />
     <Content Include="Configs\squeezeAve.ini" />
     <Content Include="Configs\squeeze.ini" />
+    <Content Include="Configs\test1 - Copy.ini" />
     <Content Include="Configs\test9.ini" />
     <Content Include="Configs\test8.ini" />
     <Content Include="Configs\test7.ini" />
@@ -79,7 +80,7 @@
     <Content Include="Configs\test4.ini" />
     <Content Include="Configs\test3.ini" />
     <Content Include="Configs\test2.ini" />
-    <Content Include="Configs\test1.ini" />
+    <Content Include="Configs\rnn1.ini" />
     <Content Include="Configs\veryLarge.ini" />
   </ItemGroup>
   <PropertyGroup>
