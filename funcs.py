@@ -22,7 +22,7 @@ def trainInit(dataset):
 	"""指定された長さの学習データで学習に必要な変数を初期化する"""
 
 	s.batchRangeStart = 0
-	s.batchRangeEnd = dataset.shape[0] - s.minEvalLen
+	s.batchRangeEnd = dataset.shape[1] - s.minEvalLen
 	if s.batchRangeEnd < 0:
 		print("Data length not enough")
 		sys.exit()
@@ -44,7 +44,7 @@ def loadDataset():
 	if s.sharedDataset is None:
 		print("Loading data from  " + s.trainDataFile)
 		s.sharedDataset = dataset = s.mk.readDataset(s.trainDataFile, s.inMA, s.datasetNoise)
-		print("    length = {}".format(dataset.shape[0]))
+		print("    length = {}".format(dataset.shape[1]))
 	else:
 		dataset = s.sharedDataset
 	return dataset

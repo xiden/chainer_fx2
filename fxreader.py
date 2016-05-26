@@ -10,43 +10,51 @@ def readDataset(filename, inMA, noise):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
-		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
+		Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
 	"""
 	filename = path.join("Datasets", filename)
 	print(filename)
 
+	data = [[], [], [], []]
+
 	with open(filename, "r") as f:
 		if s.trainDataDummy == "line":
 			# 直線データ作成
-			data = np.arange(0, 10000, 1)
-			data += np.random.uniform(-noise, noise, data.shape)
+			for i in range(10000):
+				data[0].append(i + random.uniform(-noise, noise))
+				data[1].append(i + random.uniform(-noise, noise))
+				data[2].append(i + random.uniform(-noise, noise))
+				data[3].append(i + random.uniform(-noise, noise))
 		elif s.trainDataDummy == "sin":
 			# sin関数でダミーデータ作成
-			data = []
-			delta = math.pi / 30.0
+			delta1 = math.pi / 30.0
 			for i in range(3000):
-				#t = math.sin(i * delta) + random.uniform(-0.05, 0.05)
-				t = 110.0 + math.sin(i * delta) * 10.0
-				data.append(t + random.uniform(-noise, noise))
-				data.append(t + random.uniform(-noise, noise))
-				data.append(t + random.uniform(-noise, noise))
-				data.append(t + random.uniform(-noise, noise))
+				t = 110.0 + math.sin(i * delta1) * 0.1
+				data[0].append(t + random.uniform(-noise, noise))
+				data[1].append(t + random.uniform(-noise, noise))
+				data[2].append(t + random.uniform(-noise, noise))
+				data[3].append(t + random.uniform(-noise, noise))
+				data[1][i] = max([data[0][i], data[1][i], data[2][i], data[3][i]])
+				data[2][i] = min([data[0][i], data[1][i], data[2][i], data[3][i]])
 		elif s.trainDataDummy == "sweep":
 			# sin関数でダミーデータ作成
-			data = []
-			delta = math.pi / 100.0
-			ddelta = delta / 1000.0
-			for i in range(10000):
-				t = 110.0 + math.sin(i * delta) * 1.0
-				data.append(t + random.uniform(-noise, noise))
-				data.append(t + random.uniform(-noise, noise))
-				data.append(t + random.uniform(-noise, noise))
-				data.append(t + random.uniform(-noise, noise))
-				delta += ddelta
+			delta1 = math.pi / 100.0
+			ddelta1 = delta1 / 100.0
+			delta2 = math.pi / 70.0
+			ddelta2 = delta2 / 70.0
+			for i in range(3000):
+				t = 110.0 + math.sin(i * delta1) * math.cos(i * delta2) * 0.1
+				data[0].append(t + random.uniform(-noise, noise))
+				data[1].append(t + random.uniform(-noise, noise))
+				data[2].append(t + random.uniform(-noise, noise))
+				data[3].append(t + random.uniform(-noise, noise))
+				data[1][i] = max([data[0][i], data[1][i], data[2][i], data[3][i]])
+				data[2][i] = min([data[0][i], data[1][i], data[2][i], data[3][i]])
+				delta1 += ddelta1
+				delta2 += ddelta2
 		else:
 			# 円データをそのまま使用する
 			dr = csv.reader(f)
-			data = []
 			for row in dr:
 				o = float(row[2])
 				h = float(row[3])
@@ -61,10 +69,10 @@ def readDataset(filename, inMA, noise):
 					if h < c: h = c
 					if l > o: l = o
 					if l > c: l = c
-				data.append(o)
-				data.append(h)
-				data.append(l)
-				data.append(c)
+				data[0].append(o)
+				data[1].append(h)
+				data[2].append(l)
+				data[3].append(c)
 
 		## 円変化量を使用する
 		#dr = csv.reader(f)
@@ -78,10 +86,19 @@ def readDataset(filename, inMA, noise):
 		#		#print(v)
 		#	lastVal = val
 
+	# numpy 配列にする
+	data = np.asarray(data, dtype=np.float32)
+
 	# 指定されていたら移動平均を行う
-	if inMA != 1:
-		k = np.ones(inMA * 4) / (inMA * 4)
-		a = np.asarray(np.convolve(np.asarray(data), k, 'valid'), dtype=np.float32)
-	else:
-		a = np.asarray(data, dtype=np.float32)
-	return np.reshape(a, (a.shape[0] / 4, 4))
+	if 3 <= inMA:
+		ma2 = (inMA // 2) * 2
+		inMA = ma2 + 1
+		k = np.ones(inMA) / inMA
+		src = data
+		data = np.zeros((4, src.shape[1] - ma2), dtype=np.float)
+		data[0,:] = np.convolve(src[0], k, 'valid')
+		data[1,:] = np.convolve(src[1], k, 'valid')
+		data[2,:] = np.convolve(src[2], k, 'valid')
+		data[3,:] = np.convolve(src[3], k, 'valid')
+	
+	return data

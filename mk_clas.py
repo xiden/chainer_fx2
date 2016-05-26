@@ -70,7 +70,7 @@ def readDataset(filename, inMA, noise):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
-		Returns: 開始値、高値、低値、終値が縦に並んでるイメージの2次元データ
+		Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
 	"""
 	return fxreader.readDataset(filename, inMA, noise)
 
@@ -235,7 +235,7 @@ def trainGetDataAndT(dataset, i):
 
 	# 教師値取得
 	# 既知の終値と未来の分足データの開始値との差を教師とする
-	last = dataset[frameEnd - 1, 3]
+	last = dataset[3, frameEnd - 1]
 	predData = dataset[frameEnd : frameEnd + s.predLen]
 	if s.predAve:
 		p = (predData * s.predMeanK).sum()
@@ -319,7 +319,7 @@ def trainEvaluate(dataset, index):
 	if s.grEnable:
 		# グラフにデータを描画する
 		plt.title(s.trainDataFile + " : " + str(index)) # グラフタイトル
-		xvals = dataset[index : index + s.minEvalLen].transpose()
+		xvals = dataset[:, index : index + s.minEvalLen]
 		tx = int(t.data[0])
 		ox = y.data.argmax(1)[0]
 		yvals = cuda.to_cpu(y.data[0])
@@ -361,13 +361,13 @@ def testhr():
 	evaluator.reset_state()  # initialize state
 	evaluator.train = False  # dropout does nothing
 
-	testLen = dataset.shape[0] - s.minEvalLen
+	testLen = dataset.shape[1] - s.minEvalLen
 	hitcount = 0 # 教師と出力が一致した回数
 	hitnzcount = 0 # 教師と出力が0以外の時に一致した回数
 	sdcount = 0 # 教師と出力が同じ極性だった回数
 	distance = 0.0 # 教師値との差
 
-	xvals = dataset.transpose()
+	xvals = dataset
 	tvals = np.zeros(testLen, dtype=np.int32)
 	yvals = np.zeros(testLen, dtype=np.int32)
 	evals = np.zeros(testLen, dtype=np.int32)
@@ -504,7 +504,7 @@ def fxPrediction():
 	# 必要ならグラフ表示を行う
 	if s.grEnable:
 		# グラフにデータを描画する
-		xvals = s.fxYenData[-s.frameSize:].transpose()
+		xvals = s.fxYenData[:, -s.frameSize:]
 		glIn1.set_ydata(xvals[0])
 		glIn2.set_ydata(xvals[1])
 		glIn3.set_ydata(xvals[2])
@@ -522,7 +522,7 @@ def fxPrediction():
 	# 移動平均の差分値
 	# 移動平均の差分値の差分値
 	deltaPips = float(clsSpan * (ox - clsNum) / clsNum)
-	dataForMa = s.fxYenData[-fxRetMaSize - 3:].transpose()[3]
+	dataForMa = s.fxYenData[3, -fxRetMaSize - 3:]
 	ma = np.asarray(np.convolve(np.asarray(dataForMa), fxRetMaSizeK, 'valid'), dtype=np.float32)
 	diff1 = np.diff(ma)
 	diff2 = np.diff(diff1)

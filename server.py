@@ -191,7 +191,7 @@ class Server(threading.Thread):
 		ipkt += stepBytes
 		s.fxMinData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
 
-		s.fxYenData = yenData.transpose()
+		s.fxYenData = yenData
 
 		if s.fxYenDataTrain is None:
 			s.fxYenDataTrain = s.fxYenData
@@ -219,7 +219,7 @@ class Server(threading.Thread):
 		ipkt += stepBytes
 		minData = np.array(pkt[ipkt : ipkt + stepBytes].view(dtype=np.int32))
 
-		yenData = yenData.transpose()
+		yenData = yenData
 
 		m = s.fxMinData[-1]
 		index = int(np.searchsorted(minData, int(m)))
@@ -231,7 +231,7 @@ class Server(threading.Thread):
 			n = 0
 
 		# 現在保持しているデータ最後尾に対応するデータを上書き
-		s.fxYenData[-1] = yenData[index - 1]
+		s.fxYenData[:,-1] = yenData[:,index - 1]
 		#print("set: ", yenData[index - 1])
 
 		# 追加するデータがあるなら追加する
@@ -241,12 +241,11 @@ class Server(threading.Thread):
 			mins = s.fxMinData
 			if maxDataCount < yens.shape[0] + n:
 				# 最大データ数超えたら半分にする
-				n = yens.shape[0] + n - maxDataCount // 2
-				yens = yens[n:]
-				mins = mins[n:]
-			appendYens = yenData[index:]
-			yens = np.append(yens, appendYens)
-			s.fxYenData = np.reshape(yens, (yens.shape[0] / 4, 4))
+				n = yens.shape[1] + n - maxDataCount // 2
+				yens = yens[:,n:]
+				mins = mins[:,n:]
+			appendYens = yenData[:,index:]
+			s.fxYenData = np.hstack((yens, appendYens))
 			s.fxMinData = np.append(mins, minData[index:])
 			#print("append: ", appendYens)
 

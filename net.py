@@ -1020,48 +1020,112 @@ class NLN(chainer.Chain):
 	def getModelKind(self):
 		return "lstm"
 
-class N6ReluSqueezeL4(chainer.Chain):
+class AllN6ReluSqueezeL2(chainer.Chain):
 	def __init__(m):
 		pass
 
-	def create(m, n_in, n_units, n_out, gpu, train=True):
-		n_midunits = n_units
-		n_midunits2 = n_units // 2
-		n_midunits3 = n_units // 3
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = 7 * unitCount // 10
+		uc3 = 5 * unitCount // 10
+		uc4 = 4 * unitCount // 10
+		uc5 = 3 * unitCount // 10
+		uc6 = 2 * unitCount // 10
 		super().__init__(
-			n1=L.Linear(n_in, n_midunits),
-			n2=L.Linear(n_midunits, n_midunits),
-			n3=L.Linear(n_midunits, n_midunits2),
-			n4=L.Linear(n_midunits2, n_midunits3),
-			n5=L.Linear(n_midunits3, n_midunits3),
-			l1=L.LSTM(n_midunits3, n_midunits3),
-			l2=L.LSTM(n_midunits3, n_midunits3),
-			l3=L.LSTM(n_midunits3, n_midunits3),
-			l4=L.LSTM(n_midunits3, n_midunits3),
-			n6=L.Linear(n_midunits3, n_out),
+			n1_1=L.Linear(inCount, uc1),
+			n1_2=L.Linear(inCount, uc1),
+			n1_3=L.Linear(inCount, uc1),
+			n1_4=L.Linear(inCount, uc1),
+
+			n2_1=L.Linear(uc1, uc2),
+			n2_2=L.Linear(uc1, uc2),
+			n2_3=L.Linear(uc1, uc2),
+			n2_4=L.Linear(uc1, uc2),
+
+			n3_1=L.Linear(uc2, uc3),
+			n3_2=L.Linear(uc2, uc3),
+			n3_3=L.Linear(uc2, uc3),
+			n3_4=L.Linear(uc2, uc3),
+
+			n4_1=L.Linear(uc3, uc4),
+			n4_2=L.Linear(uc3, uc4),
+			n4_3=L.Linear(uc3, uc4),
+			n4_4=L.Linear(uc3, uc4),
+
+			n5_1=L.Linear(uc4, uc5),
+			n5_2=L.Linear(uc4, uc5),
+			n5_3=L.Linear(uc4, uc5),
+			n5_4=L.Linear(uc4, uc5),
+
+			l1_1=L.LSTM(uc5, uc5),
+			l1_2=L.LSTM(uc5, uc5),
+			l1_3=L.LSTM(uc5, uc5),
+			l1_4=L.LSTM(uc5, uc5),
+
+			b1_1=L.Bilinear(uc5, uc5, uc5),
+			b1_2=L.Bilinear(uc5, uc5, uc5),
+			b2_1=L.Bilinear(uc5, uc5, uc6),
+
+			l2=L.LSTM(uc6, uc6),
+
+			n6_1=L.Linear(uc6, outCount),
 		)
 		m.train = train
 
 	#@jit(nopython=True)
 	def reset_state(m):
-		m.l1.reset_state()
+		m.l1_1.reset_state()
+		m.l1_2.reset_state()
+		m.l1_3.reset_state()
+		m.l1_4.reset_state()
 		m.l2.reset_state()
-		m.l3.reset_state()
-		m.l4.reset_state()
 
 	#@jit(nopython=True)
-	def __call__(m, x):
-		h = F.relu(m.n1(x))
-		h = F.relu(m.n2(h))
-		h = F.relu(m.n3(h))
-		h = F.relu(m.n4(h))
-		h = F.relu(m.n5(h))
-		h = m.l1(F.dropout(h, train=m.train))
-		h = m.l2(F.dropout(h, train=m.train))
-		h = m.l3(F.dropout(h, train=m.train))
-		h = m.l4(F.dropout(h, train=m.train))
-		h = m.n6(h)
-		return h
+	def __call__(m, x, volatile):
+		tr = m.train
+
+		# 開始値を処理
+		h1 = F.relu(m.n1_1(chainer.Variable(x[0], volatile=volatile)))
+		h1 = F.relu(m.n2_1(h1))
+		h1 = F.relu(m.n3_1(h1))
+		h1 = F.relu(m.n4_1(h1))
+		h1 = F.relu(m.n5_1(h1))
+
+		# 高値を処理
+		h2 = F.relu(m.n1_2(chainer.Variable(x[1], volatile=volatile)))
+		h2 = F.relu(m.n2_2(h2))
+		h2 = F.relu(m.n3_2(h2))
+		h2 = F.relu(m.n4_2(h2))
+		h2 = F.relu(m.n5_2(h2))
+
+		# 低値を処理
+		h3 = F.relu(m.n1_3(chainer.Variable(x[2], volatile=volatile)))
+		h3 = F.relu(m.n2_3(h3))
+		h3 = F.relu(m.n3_3(h3))
+		h3 = F.relu(m.n4_3(h3))
+		h3 = F.relu(m.n5_3(h3))
+
+		# 終り値を処理
+		h4 = F.relu(m.n1_4(chainer.Variable(x[3], volatile=volatile)))
+		h4 = F.relu(m.n2_4(h4))
+		h4 = F.relu(m.n3_4(h4))
+		h4 = F.relu(m.n4_4(h4))
+		h4 = F.relu(m.n5_4(h4))
+
+		h1 = m.l1_1(F.dropout(h1, train=tr))
+		h2 = m.l1_2(F.dropout(h2, train=tr))
+		h3 = m.l1_3(F.dropout(h3, train=tr))
+		h4 = m.l1_4(F.dropout(h4, train=tr))
+
+		h1 = F.relu(m.b1_1(h1, h4))
+		h2 = F.relu(m.b1_2(h2, h3))
+		h1 = F.relu(m.b2_1(h1, h2))
+
+		h1 = m.l2(F.dropout(h1, train=tr))
+
+		h1 = m.n6_1(h1)
+
+		return h1
 
 	def getModelKind(m):
 		return "lstm"
