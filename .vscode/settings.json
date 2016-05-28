@@ -1,0 +1,21 @@
+// 既定の設定とユーザー設定を上書きするには、このファイル内に設定を挿入します
+{
+    //-------- 検索構成 --------
+
+    // 検索でファイルとフォルダーを除外するために glob パターンを構成します。files.exclude 設定からすべての glob パターンを継承します。
+    "search.exclude": {
+        "*.pch": true,
+        "*.pdb": true,
+        "*.db": true,
+        "*.model": true,
+        "*.state": true,
+        "*.csv": true,
+        "*.hst": true,
+        "**/.git": true,
+        "**/.vs": true,
+        "**/Debug": true,
+        "**/Release": true,
+        "**/node_modules": true,
+        "**/bower_components": true
+    }
+}

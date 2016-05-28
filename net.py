@@ -1020,6 +1020,306 @@ class NLN(chainer.Chain):
 	def getModelKind(self):
 		return "lstm"
 
+
+class OpenDiv4N6L1B2L1(chainer.Chain):
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = 7 * unitCount // 10
+		uc3 = 5 * unitCount // 10
+		uc4 = 3 * unitCount // 10
+		uc5 = 2 * unitCount // 10
+		super().__init__(
+			n1_1=L.Linear(inCount, uc1),
+			n1_2=L.Linear(inCount, uc2),
+			n1_3=L.Linear(inCount, uc3),
+			n1_4=L.Linear(inCount, uc4),
+
+			n2_1=L.Linear(uc1, uc1),
+			n2_2=L.Linear(uc2, uc2),
+			n2_3=L.Linear(uc3, uc3),
+			n2_4=L.Linear(uc4, uc4),
+
+			n3_1=L.Linear(uc1, uc1),
+			n3_2=L.Linear(uc2, uc2),
+			n3_3=L.Linear(uc3, uc3),
+			n3_4=L.Linear(uc4, uc4),
+
+			n4_1=L.Linear(uc1, uc1),
+			n4_2=L.Linear(uc2, uc2),
+			n4_3=L.Linear(uc3, uc3),
+			n4_4=L.Linear(uc4, uc4),
+
+			n5_1=L.Linear(uc1, uc1),
+			n5_2=L.Linear(uc2, uc2),
+			n5_3=L.Linear(uc3, uc3),
+			n5_4=L.Linear(uc4, uc4),
+
+			l1_1=L.LSTM(uc1, uc1),
+			l1_2=L.LSTM(uc2, uc2),
+			l1_3=L.LSTM(uc3, uc3),
+			l1_4=L.LSTM(uc4, uc4),
+
+			b1_1=L.Bilinear(uc1, uc2, uc5),
+			b1_2=L.Bilinear(uc3, uc4, uc5),
+			b2=L.Bilinear(uc5, uc5, uc5),
+
+			l2=L.LSTM(uc5, uc5),
+
+			n6=L.Linear(uc5, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		m.l1_1.reset_state()
+		m.l1_2.reset_state()
+		m.l1_3.reset_state()
+		m.l1_4.reset_state()
+		m.l2.reset_state()
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		tr = m.train
+
+		# 値取得
+		x1 = chainer.Variable(x, volatile=volatile)
+		x2 = chainer.Variable(x, volatile=volatile)
+		x3 = chainer.Variable(x, volatile=volatile)
+		x4 = chainer.Variable(x, volatile=volatile)
+
+		# ４種類の次元数に圧縮
+		h1 = F.relu(m.n1_1(x1))
+		h2 = F.relu(m.n1_2(x2))
+		h3 = F.relu(m.n1_3(x3))
+		h4 = F.relu(m.n1_4(x4))
+
+		# 圧縮された次元数で４レイヤ分処理
+		h1 = F.relu(m.n2_1(h1))
+		h2 = F.relu(m.n2_2(h2))
+		h3 = F.relu(m.n2_3(h3))
+		h4 = F.relu(m.n2_4(h4))
+
+		h1 = F.relu(m.n3_1(h1))
+		h2 = F.relu(m.n3_2(h2))
+		h3 = F.relu(m.n3_3(h3))
+		h4 = F.relu(m.n3_4(h4))
+
+		h1 = F.relu(m.n4_1(h1))
+		h2 = F.relu(m.n4_2(h2))
+		h3 = F.relu(m.n4_3(h3))
+		h4 = F.relu(m.n4_4(h4))
+
+		h1 = F.relu(m.n5_1(h1))
+		h2 = F.relu(m.n5_2(h2))
+		h3 = F.relu(m.n5_3(h3))
+		h4 = F.relu(m.n5_4(h4))
+
+		# LSTMに通す
+		h1 = m.l1_1(F.dropout(h1, train=tr))
+		h2 = m.l1_2(F.dropout(h2, train=tr))
+		h3 = m.l1_3(F.dropout(h3, train=tr))
+		h4 = m.l1_4(F.dropout(h4, train=tr))
+
+		# 異なる次元数のレイヤを混ぜて１つにする
+		h12 = m.b1_1(h1, h2)
+		h34 = m.b1_2(h3, h4)
+		h = m.b2(h12, h34)
+
+		# またLSTMに通す
+		h = m.l2(F.dropout(h, train=tr))
+
+		# 最後に１レイヤ通す
+		h = m.n6(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices, rnnLen, rnnStep):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		data = np.zeros(shape=(rnnLen, batchSize, inCount), dtype=np.float32)
+		for i in range(rnnLen):
+			ofs = i * rnnStep
+			for bi in range(batchSize):
+				index = batchIndices[bi] + ofs
+				data[i,bi,:] = dataset[0, index : index + inCount]
+		return data
+
+	def buildSeqData(m, dataset):
+		"""データセット全体をシーケンシャルに評価するためのデータ作成"""
+		return dataset[0]
+
+	def allocFrame(m):
+		"""１回の処理で使用するバッファ確保"""
+		return np.zeros(shape=(1, m.inCount), dtype=np.float32)
+
+	def copySeqDataToFrame(m, seq, index, frame):
+		"""buildSeqData() で確保したデータの指定位置から allocFrame() で確保した領域へコピーする"""
+		frame[:] = seq[index : index + m.inCount]
+
+	def getModelKind(m):
+		return "lstm"
+
+
+class OpenDiv4N5L1N1B2L1N1(chainer.Chain):
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = 7 * unitCount // 10
+		uc3 = 5 * unitCount // 10
+		uc4 = 3 * unitCount // 10
+		uc5 = 1 * unitCount // 10
+		super().__init__(
+			n1_1=L.Linear(inCount, uc1),
+			n1_2=L.Linear(inCount, uc2),
+			n1_3=L.Linear(inCount, uc3),
+			n1_4=L.Linear(inCount, uc4),
+
+			n2_1=L.Linear(uc1, uc1),
+			n2_2=L.Linear(uc2, uc2),
+			n2_3=L.Linear(uc3, uc3),
+			n2_4=L.Linear(uc4, uc4),
+
+			n3_1=L.Linear(uc1, uc1),
+			n3_2=L.Linear(uc2, uc2),
+			n3_3=L.Linear(uc3, uc3),
+			n3_4=L.Linear(uc4, uc4),
+
+			n4_1=L.Linear(uc1, uc1),
+			n4_2=L.Linear(uc2, uc2),
+			n4_3=L.Linear(uc3, uc3),
+			n4_4=L.Linear(uc4, uc4),
+
+			n5_1=L.Linear(uc1, uc1),
+			n5_2=L.Linear(uc2, uc2),
+			n5_3=L.Linear(uc3, uc3),
+			n5_4=L.Linear(uc4, uc4),
+
+			l1_1=L.LSTM(uc1, uc1),
+			l1_2=L.LSTM(uc2, uc2),
+			l1_3=L.LSTM(uc3, uc3),
+			l1_4=L.LSTM(uc4, uc4),
+
+			n6_1=L.Linear(uc1, uc5),
+			n6_2=L.Linear(uc2, uc5),
+			n6_3=L.Linear(uc3, uc5),
+			n6_4=L.Linear(uc4, uc5),
+
+			b1_1=L.Bilinear(uc5, uc5, uc5),
+			b1_2=L.Bilinear(uc5, uc5, uc5),
+			b2=L.Bilinear(uc5, uc5, uc5),
+
+			l2=L.LSTM(uc5, uc5),
+
+			n7=L.Linear(uc5, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		m.l1_1.reset_state()
+		m.l1_2.reset_state()
+		m.l1_3.reset_state()
+		m.l1_4.reset_state()
+		m.l2.reset_state()
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		tr = m.train
+
+		# 値取得
+		x1 = chainer.Variable(x, volatile=volatile)
+		x2 = chainer.Variable(x, volatile=volatile)
+		x3 = chainer.Variable(x, volatile=volatile)
+		x4 = chainer.Variable(x, volatile=volatile)
+
+		# ４種類の次元数に圧縮
+		h1 = F.relu(m.n1_1(x1))
+		h2 = F.relu(m.n1_2(x2))
+		h3 = F.relu(m.n1_3(x3))
+		h4 = F.relu(m.n1_4(x4))
+
+		# 圧縮された次元数で４レイヤ分処理
+		h1 = F.relu(m.n2_1(h1))
+		h2 = F.relu(m.n2_2(h2))
+		h3 = F.relu(m.n2_3(h3))
+		h4 = F.relu(m.n2_4(h4))
+
+		h1 = F.relu(m.n3_1(h1))
+		h2 = F.relu(m.n3_2(h2))
+		h3 = F.relu(m.n3_3(h3))
+		h4 = F.relu(m.n3_4(h4))
+
+		h1 = F.relu(m.n4_1(h1))
+		h2 = F.relu(m.n4_2(h2))
+		h3 = F.relu(m.n4_3(h3))
+		h4 = F.relu(m.n4_4(h4))
+
+		h1 = F.relu(m.n5_1(h1))
+		h2 = F.relu(m.n5_2(h2))
+		h3 = F.relu(m.n5_3(h3))
+		h4 = F.relu(m.n5_4(h4))
+
+		# LSTMに通す
+		h1 = m.l1_1(F.dropout(h1, train=tr))
+		h2 = m.l1_2(F.dropout(h2, train=tr))
+		h3 = m.l1_3(F.dropout(h3, train=tr))
+		h4 = m.l1_4(F.dropout(h4, train=tr))
+
+		# 同じ次元数に整える
+		h1 = F.relu(m.n6_1(h1))
+		h2 = F.relu(m.n6_2(h2))
+		h3 = F.relu(m.n6_3(h3))
+		h4 = F.relu(m.n6_4(h4))
+
+		# バイリニアで合成
+		h12 = m.b1_1(h1, h2)
+		h34 = m.b1_2(h3, h4)
+		h = m.b2(h12, h34)
+
+		# またLSTMに通す
+		h = m.l2(F.dropout(h, train=tr))
+
+		# 最後に１レイヤ通す
+		h = m.n7(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices, rnnLen, rnnStep):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		data = np.zeros(shape=(rnnLen, batchSize, inCount), dtype=np.float32)
+		for i in range(rnnLen):
+			ofs = i * rnnStep
+			for bi in range(batchSize):
+				index = batchIndices[bi] + ofs
+				data[i,bi,:] = dataset[0, index : index + inCount]
+		return data
+
+	def buildSeqData(m, dataset):
+		"""データセット全体をシーケンシャルに評価するためのデータ作成"""
+		return dataset[0]
+
+	def allocFrame(m):
+		"""１回の処理で使用するバッファ確保"""
+		return np.zeros(shape=(1, m.inCount), dtype=np.float32)
+
+	def copySeqDataToFrame(m, seq, index, frame):
+		"""buildSeqData() で確保したデータの指定位置から allocFrame() で確保した領域へコピーする"""
+		frame[:] = seq[index : index + m.inCount]
+
+	def getModelKind(m):
+		return "lstm"
+
+
 class AllN6ReluSqueezeL2(chainer.Chain):
 	def __init__(m):
 		pass

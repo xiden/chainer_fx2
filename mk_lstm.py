@@ -166,11 +166,6 @@ def getTestFileName(testFileName):
 	return testFileName + "rnn" + str(rnnLen) + "step" + str(rnnStep)
 
 #@jit
-def trainGetX(dataset, i):
-	"""学習データ取得"""
-	return dataset[:,i : i + s.frameSize]
-
-#@jit
 def trainGetT(dataset, i):
 	"""教師データ取得"""
 	frameEnd = i + s.frameSize
@@ -190,18 +185,12 @@ def trainBatch(dataset, itr):
 	"""ミニバッチで学習する"""
 
 	# 全ミニバッチ分のメモリ領域確保して学習＆教師データ取得
-	xa_cpu = np.zeros(shape=(rnnLen, 4, s.batchSize, s.dnnIn), dtype=np.float32)
+	xa_cpu = s.dnn.model.buildMiniBatchData(dataset, s.batchStartIndices, rnnLen, rnnStep)
 	ta_cpu = np.zeros(shape=(rnnLen, s.batchSize, s.dnnOut), dtype=np.float32)
 	for i in range(rnnLen):
 		offset = i * rnnStep
 		for bi in range(s.batchSize):
-			index = s.batchStartIndices[bi] + offset
-			x = trainGetX(dataset, index)
-			xa_cpu[i,0,bi,:] = x[0]
-			xa_cpu[i,1,bi,:] = x[1]
-			xa_cpu[i,2,bi,:] = x[2]
-			xa_cpu[i,3,bi,:] = x[3]
-			ta_cpu[i,bi,:] = trainGetT(dataset, index)
+			ta_cpu[i,bi,:] = trainGetT(dataset, s.batchStartIndices[bi] + offset)
 	if s.xp == np:
 		xa_gpu = xa_cpu
 		ta_gpu = ta_cpu
@@ -239,16 +228,10 @@ def trainEvaluate(dataset, index):
 	evdnn = Dnn(evaluator, None)
 
 	# メモリ領域確保して学習＆教師データ取得
-	xa_cpu = np.zeros(shape=(rnnLen, 4, 1, s.dnnIn), dtype=np.float32)
+	xa_cpu = evaluator.buildMiniBatchData(dataset, np.asarray([index]), rnnLen, rnnStep)
 	ta_cpu = np.zeros(shape=(rnnLen, 1, s.dnnOut), dtype=np.float32)
 	for i in range(rnnLen):
-		offset = index + i * rnnStep
-		x = trainGetX(dataset, offset)
-		xa_cpu[i,0,0,:] = x[0]
-		xa_cpu[i,1,0,:] = x[1]
-		xa_cpu[i,2,0,:] = x[2]
-		xa_cpu[i,3,0,:] = x[3]
-		ta_cpu[i,0,:] = trainGetT(dataset, offset)
+		ta_cpu[i,0,:] = trainGetT(dataset, index + i * rnnStep)
 	if s.xp == np:
 		xa_gpu = xa_cpu
 		ta_gpu = ta_cpu
@@ -329,19 +312,19 @@ def testhr():
 	distance = 0.0 # 教師値との差
 
 	# メモリ領域確保して学習＆教師データ取得
-	xa_cpu_all = dataset
+	xa_cpu_all = evaluator.buildSeqData(dataset)
+	xa_cpu = evaluator.allocFrame()
 	ta_cpu = np.zeros(shape=(testLen,), dtype=np.float32)
 	ya_cpu = np.zeros(shape=(testLen,), dtype=np.float32)
 	for i in range(testLen):
 		ta_cpu[i] = trainGetT(dataset, i * rnnStep)
 	if s.xp == np:
 		xa_gpu_all = xa_cpu_all
-		xa_gpu = np.zeros((4, 1, s.dnnIn), dtype=np.float32)
 		xa_gpu = xa_cpu
 		ya_gpu = ya_cpu
 	else:
 		xa_gpu_all = cuda.to_gpu(xa_cpu_all)
-		xa_gpu = cuda.zeros((4, 1, s.dnnIn), dtype=np.float32)
+		xa_gpu = cuda.to_gpu(xa_cpu)
 		ya_gpu = cuda.to_gpu(ya_cpu)
 
 	xvals = dataset
@@ -383,11 +366,7 @@ def testhr():
 	lastLen = 0
 	while i < testLen:
 		# ニューラルネットを通す
-		testPosEnd = testPos + s.dnnIn
-		xa_gpu[0,0,:] = xa_gpu_all[0, testPos : testPosEnd]
-		xa_gpu[1,0,:] = xa_gpu_all[1, testPos : testPosEnd]
-		xa_gpu[2,0,:] = xa_gpu_all[2, testPos : testPosEnd]
-		xa_gpu[3,0,:] = xa_gpu_all[3, testPos : testPosEnd]
+		evaluator.copySeqDataToFrame(xa_gpu_all, testPos, xa_gpu)
 		y = evaluator(xa_gpu, chainer.flag.ON)
 		ya_gpu[i : i + 1] = y.data[0 : 1]
 		i += 1
