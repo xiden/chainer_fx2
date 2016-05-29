@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>rnn1.ini -mtesthr -d0_50000_50000 -g1 -t1000</CommandLineArguments>
+    <CommandLineArguments>noai.ini -mserver</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -43,6 +43,9 @@
     <Compile Include="mk_lstm.py">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Include="mk_noai.py">
+      <SubType>Code</SubType>
+    </Compile>
     <Compile Include="share.py">
       <SubType>Code</SubType>
     </Compile>
@@ -61,6 +64,7 @@
     <Content Include="Configs\4月Sq.ini" />
     <Content Include="Configs\4月.ini" />
     <Content Include="Configs\clslight.ini" />
+    <Content Include="Configs\noai.ini" />
     <Content Include="Configs\semilarge.ini" />
     <Content Include="Configs\large.ini" />
     <Content Include="Configs\light.ini" />

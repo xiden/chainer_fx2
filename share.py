@@ -23,6 +23,7 @@ import net
 import ini
 import mk_lstm
 import mk_clas
+import mk_noai
 
 
 def loadModelAndOptimizer():
@@ -148,7 +149,7 @@ predMeanK = predMeanK.reshape((1, predLen))
 minPredLen = 0 # ドル円未来予測に必要な最小分足データ数、実際に必要なデータ数は4倍となる
 minEvalLen = 0 # 学習結果の評価に必要な最小分足データ数、実際に必要なデータ数は4倍となる
 fxRequiredYenDataLen = 0 # MT4から送る必要がある分足データ数、実際に必要なデータ数は4倍となる
-fxYenData = np.zeros((1, 1), dtype=np.float32) # MT4から送られる分足データ、開始値配列、高値配列、低値配列、終値配列の2次元配列
+fxYenData = np.zeros((1, 1), dtype=np.float32) # MT4から送られる分足データ、開始値、高値、低値、終値の繰り返し（2次元配列）
 fxMinData = np.zeros(1, dtype=np.int32) # MT4から送られる分足時間データ、添え字は fxYenData の2次元目と同じ
 fxYenDataTrain = None # 学習用の分足データ、学習したいデータが更新されたら None 以外になる
 fxYenPredictionModel = None # ドル円未来予測用のネットワークモデル
@@ -179,6 +180,8 @@ if model.getModelKind() == "lstm":
 	mk = mk_lstm
 elif model.getModelKind() == "clas":
 	mk = mk_clas
+elif model.getModelKind() == "noai":
+	mk = mk_noai
 else:
 	print("Unknown model kind", model.getModelKind())
 	sys.exit()

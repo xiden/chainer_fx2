@@ -1501,3 +1501,16 @@ class L4(chainer.Chain):
 
 	def getModelKind(self):
 		return "lstm"
+
+
+class NoAi(chainer.Chain):
+	def __init__(m):
+		pass
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		super().__init__()
+	def reset_state(m):
+		pass
+	def __call__(m, x, volatile):
+		return 0.0
+	def getModelKind(m):
+		return "noai"
