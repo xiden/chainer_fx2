@@ -70,7 +70,13 @@ def findDataset(symbol):
 	d = datasets[number]
 	return d[0] + "_" + d[1] + ".csv"
 
+def toGpu(x):
+	"""GPU利用可能状態ならGPUメモリオブジェクトに変換する"""
+	return x if xp is np else cuda.to_gpu(x)
 
+def toCpu(x):
+	"""GPU利用可能状態ならCPUメモリオブジェクトに変換する"""
+	return x if xp is np else cuda.to_cpu(x)
 
 # コマンドライン引数解析
 parser = argparse.ArgumentParser()

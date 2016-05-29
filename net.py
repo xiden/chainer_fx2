@@ -5,38 +5,158 @@ import numpy as np
 from numba import jit
 import mk_clas as c
 
-class N15ReluSqueeze(chainer.Chain):
-	def __init__(self):
+
+class OpenDiv4N6N1(chainer.Chain):
+	def __init__(m):
 		pass
 
-	def create(self, n_in, n_units, n_out, gpu, train=True):
-		n_midunits = n_units
-		n_midunits2 = n_units // 2
-		n_midunits3 = n_units // 4
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = 8 * unitCount // 10
+		uc3 = 6 * unitCount // 10
+		uc4 = 4 * unitCount // 10
+		uc5 = 2 * unitCount // 10
 		super().__init__(
-			l1=L.Linear(n_in, n_midunits),
-			l2=L.Linear(n_midunits, n_midunits),
-			l3=L.Linear(n_midunits, n_midunits),
-			l4=L.Linear(n_midunits, n_midunits2),
-			l5=L.Linear(n_midunits2, n_midunits2),
-			l6=L.Linear(n_midunits2, n_midunits2),
-			l7=L.Linear(n_midunits2, n_midunits3),
-			l8=L.Linear(n_midunits3, n_midunits3),
-			l9=L.Linear(n_midunits3, n_midunits3),
-			l10=L.Linear(n_midunits3, n_midunits2),
-			l11=L.Linear(n_midunits2, n_midunits2),
-			l12=L.Linear(n_midunits2, n_midunits),
-			l13=L.Linear(n_midunits, n_midunits),
-			l14=L.Linear(n_midunits, n_midunits),
-			l15=L.Linear(n_midunits, n_out),
-		)
-		self.train = train
+			n1_1=L.Linear(inCount, uc1),
+			n1_2=L.Linear(inCount, uc2),
+			n1_3=L.Linear(inCount, uc3),
+			n1_4=L.Linear(inCount, uc4),
 
-	def reset_state(self):
+			n2_1=L.Linear(uc1, uc1),
+			n2_2=L.Linear(uc2, uc2),
+			n2_3=L.Linear(uc3, uc3),
+			n2_4=L.Linear(uc4, uc4),
+
+			n3_1=L.Linear(uc1, uc1),
+			n3_2=L.Linear(uc2, uc2),
+			n3_3=L.Linear(uc3, uc3),
+			n3_4=L.Linear(uc4, uc4),
+
+			n4_1=L.Linear(uc1, uc1),
+			n4_2=L.Linear(uc2, uc2),
+			n4_3=L.Linear(uc3, uc3),
+			n4_4=L.Linear(uc4, uc4),
+
+			n5_1=L.Linear(uc1, uc1),
+			n5_2=L.Linear(uc2, uc2),
+			n5_3=L.Linear(uc3, uc3),
+			n5_4=L.Linear(uc4, uc4),
+
+			n6_1=L.Linear(uc1, uc5),
+			n6_2=L.Linear(uc2, uc5),
+			n6_3=L.Linear(uc3, uc5),
+			n6_4=L.Linear(uc4, uc5),
+
+			#b1_1=L.Bilinear(uc5, uc5, uc5),
+			#b1_2=L.Bilinear(uc5, uc5, uc5),
+			#b2=L.Bilinear(uc5, uc5, uc5),
+
+			n7=L.Linear(uc5, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 値取得
+		x = chainer.Variable(x, volatile=volatile)
+
+		# ４種類の次元数に圧縮
+		h1 = F.relu(m.n1_1(x))
+		h2 = F.relu(m.n1_2(x))
+		h3 = F.relu(m.n1_3(x))
+		h4 = F.relu(m.n1_4(x))
+
+		# 圧縮された次元数で４レイヤ分処理
+		h1 = F.relu(m.n2_1(h1))
+		h2 = F.relu(m.n2_2(h2))
+		h3 = F.relu(m.n2_3(h3))
+		h4 = F.relu(m.n2_4(h4))
+
+		h1 = F.relu(m.n3_1(h1))
+		h2 = F.relu(m.n3_2(h2))
+		h3 = F.relu(m.n3_3(h3))
+		h4 = F.relu(m.n3_4(h4))
+
+		h1 = F.relu(m.n4_1(h1))
+		h2 = F.relu(m.n4_2(h2))
+		h3 = F.relu(m.n4_3(h3))
+		h4 = F.relu(m.n4_4(h4))
+
+		h1 = F.relu(m.n5_1(h1))
+		h2 = F.relu(m.n5_2(h2))
+		h3 = F.relu(m.n5_3(h3))
+		h4 = F.relu(m.n5_4(h4))
+
+		# 同じ次元数に整える
+		h1 = F.relu(m.n6_1(h1))
+		h2 = F.relu(m.n6_2(h2))
+		h3 = F.relu(m.n6_3(h3))
+		h4 = F.relu(m.n6_4(h4))
+
+		# バイリニアで合成
+		#h12 = m.b1_1(h1, h2)
+		#h34 = m.b1_2(h3, h4) これ使うと何故かGPUメモリ不正アクセスで落ちる
+		#h = m.b2(h12, h34)
+		h = h1 + h2 + h3 + h4
+
+		# 最後に１レイヤ通す
+		h = m.n7(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		x = np.zeros(shape=(batchSize, inCount), dtype=np.float32)
+		for i, p in enumerate(batchIndices):
+			f = dataset[0, p : p + inCount]
+			x[i,:] = f - (f.max() + f.min()) * 0.5
+		return x
+
+	def getModelKind(m):
+		return "clas"
+
+
+class N15ReluSqueeze(chainer.Chain):
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = unitCount // 2
+		uc3 = unitCount // 4
+		super().__init__(
+			l1=L.Linear(inCount, uc1),
+			l2=L.Linear(uc1, uc1),
+			l3=L.Linear(uc1, uc1),
+			l4=L.Linear(uc1, uc2),
+			l5=L.Linear(uc2, uc2),
+			l6=L.Linear(uc2, uc2),
+			l7=L.Linear(uc2, uc3),
+			l8=L.Linear(uc3, uc3),
+			l9=L.Linear(uc3, uc3),
+			l10=L.Linear(uc3, uc2),
+			l11=L.Linear(uc2, uc2),
+			l12=L.Linear(uc2, uc1),
+			l13=L.Linear(uc1, uc1),
+			l14=L.Linear(uc1, uc1),
+			l15=L.Linear(uc1, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	def reset_state(m):
 		pass
 
 	#@jit
-	def __call__(m, x):
+	def __call__(m, x, volatile):
+		x = chainer.Variable(x, volatile=volatile)
 		h = F.relu(m.l1(x))
 		h = F.relu(m.l2(h))
 		h = F.relu(m.l3(h))
@@ -54,7 +174,17 @@ class N15ReluSqueeze(chainer.Chain):
 		h = m.l15(h)
 		return h
 
-	def getModelKind(self):
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		x = np.zeros(shape=(batchSize, inCount), dtype=np.float32)
+		for i, p in enumerate(batchIndices):
+			f = dataset[0, p : p + inCount]
+			x[i,:] = f - (f.max() + f.min()) * 0.5
+		return x
+
+	def getModelKind(m):
 		return "clas"
 
 class N15Relu(chainer.Chain):

@@ -164,6 +164,28 @@ def func(x, a, b, c):
 	x2 = x * x
 	return a + b * x + c * x2
 
+def predByDiff(data, n):
+	"""4階微分で指定数のデータを予測し追加する"""
+	d1 = np.diff(data[-5:])
+	d2 = np.diff(d1)
+	d3 = np.diff(d2)
+	d4 = np.diff(d3)
+	d1 = d1[-1]
+	d2 = d2[-1]
+	d3 = d3[-1]
+	d4 = d4[-1]
+	t = data[-1]
+	l = data.shape[0]
+	data = np.resize(data, (l + n,))
+	for i in range(n):
+		d1 += d2
+		d2 += d3
+		d3 += d4
+		t += d1
+		data[l + i] = t
+	return data
+
+
 def fxPrediction():
 	"""
 	現在の円データから予測する
@@ -184,13 +206,18 @@ def fxPrediction():
 	dataMaH = np.convolve(dataset[1], kernel, 'valid')
 	dataMaL = np.convolve(dataset[2], kernel, 'valid')
 
-	# 最小二乗法で減ったデータを予測
-	xma = datasetX[-leastSquaresLen:]
-	ph, covariance = scipy.optimize.curve_fit(func, xma, dataMaH[-leastSquaresLen:], p0=np.zeros(3, dtype=np.float64))
-	pl, covariance = scipy.optimize.curve_fit(func, xma, dataMaL[-leastSquaresLen:], p0=np.zeros(3, dtype=np.float64))
-	xma = np.arange(datasetLength, datasetLength + maSize // 2, 1)
-	dataMaH = np.append(dataMaH, func(xma, ph[0], ph[1], ph[2]))
-	dataMaL = np.append(dataMaL, func(xma, pl[0], pl[1], pl[2]))
+	# 変化量で減ったデータを予測
+	n = maSize // 2
+	dataMaH = predByDiff(dataMaH, n)
+	dataMaL = predByDiff(dataMaL, n)
+
+	## 最小二乗法で減ったデータを予測
+	#xma = datasetX[-leastSquaresLen:]
+	#ph, covariance = scipy.optimize.curve_fit(func, xma, dataMaH[-leastSquaresLen:], p0=np.zeros(3, dtype=np.float64))
+	#pl, covariance = scipy.optimize.curve_fit(func, xma, dataMaL[-leastSquaresLen:], p0=np.zeros(3, dtype=np.float64))
+	#xma = np.arange(datasetLength, datasetLength + maSize // 2, 1)
+	#dataMaH = np.append(dataMaH, func(xma, ph[0], ph[1], ph[2]))
+	#dataMaL = np.append(dataMaL, func(xma, pl[0], pl[1], pl[2]))
 
 	# 必要ならグラフ表示を行う
 	if s.grEnable:

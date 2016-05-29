@@ -25,8 +25,6 @@ datasetExtract = None # データセットの抽出方法
 fxRetMaSize = 0 # クライアントへ返す第二値の移動平均サイズ
 fxRetMaSig = 0 # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
 fxRetMaSizeK = None
-trainDataOffset = None
-trainDataExtract = None
 
 subPlot1 = None
 subPlot2 = None
@@ -53,12 +51,12 @@ class Dnn(object):
 		self.model = model
 		self.optimizer = optimizer
 
-	def forward(self, x, t, calcLoss):
-		y = self.model(x)
-		if calcLoss:
-			return (y, F.softmax_cross_entropy(y, t))
-		else:
-			return (y, None)
+	def forward(self, x, volatile=chainer.flag.OFF):
+		return self.model(x, volatile)
+
+	def evaluate(self, x, t, volatile=chainer.flag.OFF):
+		y = self.model(x, volatile)
+		return (y, F.softmax_cross_entropy(y, chainer.Variable(t, volatile=volatile)))
 
 	def update(self, loss):
 		self.model.zerograds()
@@ -84,8 +82,6 @@ def init(iniFileName):
 	global fxRetMaSize
 	global fxRetMaSig
 	global fxRetMaSizeK
-	global trainDataOffset
-	global trainDataExtract
 
 	configIni = ini.file(iniFileName, "CLAS")
 	clsNum = configIni.getInt("clsNum", "3") # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
@@ -95,23 +91,6 @@ def init(iniFileName):
 	datasetExtract = configIni.getStr("datasetExtract", "all") # データセットの抽出方法
 	fxRetMaSize = configIni.getInt("fxRetMaSize", "5") # クライアントへ返す第二値の移動平均サイズ
 	fxRetMaSig = configIni.getInt("fxRetMaSig", "3") # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
-
-	# INIにより関数振り分け
-	if offsetMode == "average":
-		trainDataOffset = trainDataOffsetAverage
-	elif offsetMode == "center":
-		trainDataOffset = trainDataOffsetCenter
-	else:
-		print("Unknown offsetMode :", offsetMode)
-		sys.exit()
-
-	if datasetExtract == "all":
-		trainDataExtract = trainDataExtractAll
-	elif datasetExtract == "open":
-		trainDataExtract = trainDataExtractOpen
-	else:
-		print("Unknown trainDataExtract :", trainDataExtract)
-		sys.exit()
 
 	# 移動平均（ガウシアン）のカーネル計算
 	fxRetMaSize = (fxRetMaSize // 2) * 2 + 1
@@ -123,10 +102,7 @@ def init(iniFileName):
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
 
 	# ニューラルネットの入力次元数
-	if trainDataExtract == trainDataExtractOpen:
-		s.dnnIn = s.frameSize 
-	else:
-		s.dnnIn = s.frameSize * 4
+	s.dnnIn = s.frameSize 
 	# ニューラルネットの出力次元数
 	s.dnnOut = clsNum * 2 + 1
 
@@ -197,46 +173,15 @@ def initGraph(windowCaption):
 def getTestFileName(testFileName):
 	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan) + datasetExtract
 
-def trainDataOffsetAverage(x):
-	return x - np.average(x)
-
-def trainDataOffsetCenter(x):
-	return x - (x.max() + x.min()) * 0.5
-
-def trainDataExtractAll(x, n):
-	return np.reshape(x, (n * 4,))
-
-def trainDataExtractOpen(x, n):
-	return x[:n,0]
-
 #@jit
-def trainGetDataAndT(dataset, i):
-	"""学習データと教師データ取得"""
+def trainGetT(dataset, i):
+	"""教師データ取得"""
 	frameEnd = i + s.frameSize
-
-	## 教師値取得
-	## 既知の終値と未来の分足データ間で最も差が大きいものを教師とする
-	#last = dataset[frameEnd - 1,3]
-	#predData = dataset[frameEnd : frameEnd + s.predLen]
-	#if s.predAve:
-	#	tmin = tmax = (predData * s.predMeanK).sum()
-	#else:
-	#	tmin = predData.min()
-	#	tmax = predData.max()
-	#dtmin = float(tmin - last)
-	#dtmax = float(tmax - last)
-	#t = dtmin if math.fabs(dtmax) < math.fabs(dtmin) else dtmax
-	#t = int(round(100.0 * t * clsNum / clsSpan, 0))
-	#if t < -clsNum:
-	#	t = -clsNum
-	#elif clsNum < t:
-	#	t = clsNum
-	#t += clsNum
 
 	# 教師値取得
 	# 既知の終値と未来の分足データの開始値との差を教師とする
 	last = dataset[3, frameEnd - 1]
-	predData = dataset[frameEnd : frameEnd + s.predLen]
+	predData = dataset[0, frameEnd : frameEnd + s.predLen]
 	if s.predAve:
 		p = (predData * s.predMeanK).sum()
 	else:
@@ -249,39 +194,30 @@ def trainGetDataAndT(dataset, i):
 		t = clsNum
 	t += clsNum
 
-	# フレーム取得
-	# フレーム内の値をシフト
-	x = dataset[i : frameEnd]
-	x = trainDataExtract(x, s.frameSize)
-	x = trainDataOffset(x)
-	return x, t
+	return t
 
 #@jit
-def fxGetData(dataset):
-	"""学習データのみ取得"""
-	# フレーム取得
-	# フレーム内の値をシフト
-	x = dataset[-s.frameSize:]
-	x = trainDataExtract(x, s.frameSize)
-	x = trainDataOffset(x)
-	return x
+def trainGetXBatchs(model, dataset, batchIndices, toGpu=True):
+	"""学習データと教師データをミニバッチで取得"""
+	x = model.buildMiniBatchData(dataset, batchIndices)
+	return s.toGpu(x) if toGpu else x
 
 #@jit
-def trainGetBatchs(dataset):
-	# 学習データと教師データ取得
-	xa_cpu = np.zeros(shape=(s.batchSize, s.dnnIn), dtype=np.float32)
-	ta_cpu = np.zeros(shape=(s.batchSize,), dtype=np.int32)
-	for bi in range(s.batchSize):
-		xa_cpu[bi,:], ta_cpu[bi] = trainGetDataAndT(dataset, s.batchStartIndices[bi])
-	return chainer.Variable(cuda.to_gpu(xa_cpu)), chainer.Variable(cuda.to_gpu(ta_cpu))
+def trainGetTBatchs(dataset, batchIndices, toGpu=True):
+	"""学習データと教師データをミニバッチで取得"""
+	t = np.zeros(shape=batchIndices.shape, dtype=np.int32)
+	for i, p in enumerate(batchIndices):
+		t[i] = trainGetT(dataset, p)
+	return s.toGpu(t) if toGpu else t
 
 #@jit
 def trainBatch(dataset, itr):
 	"""ミニバッチで学習する"""
 
 	# 学習実行
-	x, t = trainGetBatchs(dataset)
-	y, loss = s.dnn.forward(x, t, True)
+	x = trainGetXBatchs(s.dnn.model, dataset, s.batchStartIndices)
+	t = trainGetTBatchs(dataset, s.batchStartIndices)
+	y, loss = s.dnn.evaluate(x, t)
 
 	# ユーザー入力による流れ制御
 	s.forceEval = False
@@ -302,27 +238,30 @@ def trainEvaluate(dataset, index):
 	"""現在のニューラルネットワーク評価処理"""
 
 	# モデルに影響を与えないようにコピーする
-	evaluator = s.dnn.model.copy()  # to use different state
-	evaluator.reset_state()  # initialize state
-	evaluator.train = False  # dropout does nothing
-	evdnn = Dnn(evaluator, None)
+	model = s.dnn.model.copy()  # to use different state
+	model.reset_state()  # initialize state
+	model.train = False  # dropout does nothing
+	evdnn = Dnn(model, None)
 
 	# 学習データ取得
-	xa, ta = trainGetDataAndT(dataset, index)
-	x = chainer.Variable(s.xp.asarray([xa], dtype=np.float32), volatile='on')
-	t = chainer.Variable(s.xp.asarray([ta], dtype=np.int32), volatile='on')
+	batchIndices = np.asarray([index])
+	x = trainGetXBatchs(model, dataset, batchIndices)
+	t = trainGetTBatchs(dataset, batchIndices)
 
 	# ニューラルネットを通す
-	y, loss = evdnn.forward(x, t, True)
+	y, loss = evdnn.evaluate(x, t, chainer.flag.ON)
 
 	# 必要ならグラフ表示を行う
 	if s.grEnable:
 		# グラフにデータを描画する
 		plt.title(s.trainDataFile + " : " + str(index)) # グラフタイトル
 		xvals = dataset[:, index : index + s.minEvalLen]
-		tx = int(t.data[0])
+		tx = int(t[0])
 		ox = y.data.argmax(1)[0]
-		yvals = cuda.to_cpu(y.data[0])
+		if s.xp is np:
+			yvals = y.data[0]
+		else:
+			yvals = cuda.to_cpu(y.data[0])
 		glIn1.set_ydata(xvals[0])
 		glIn2.set_ydata(xvals[1])
 		glIn3.set_ydata(xvals[2])
@@ -357,9 +296,9 @@ def testhr():
 	#evaluator.train = False  # dropout does nothing
 
 	# モデルを非学習モードにしてそのまま使用する
-	evaluator = s.dnn.model
-	evaluator.reset_state()  # initialize state
-	evaluator.train = False  # dropout does nothing
+	model = s.dnn.model
+	model.reset_state()  # initialize state
+	model.train = False  # dropout does nothing
 
 	testLen = dataset.shape[1] - s.minEvalLen
 	hitcount = 0 # 教師と出力が一致した回数
@@ -406,16 +345,15 @@ def testhr():
 		n = testLen - i
 		if s.batchSize < n:
 			n = s.batchSize
-		xa_cpu = np.zeros(shape=(n, s.dnnIn), dtype=np.float32)
-		ta_cpu = np.zeros(shape=(n,), dtype=np.int32)
-		for bi in range(n):
-			xa_cpu[bi,:], ta_cpu[bi] = trainGetDataAndT(dataset, i + bi)
+		batchIndices = np.arange(i, i + n, 1)
+		x = trainGetXBatchs(model, dataset, batchIndices)
+		t = trainGetTBatchs(dataset, batchIndices, False)
 		# ニューラルネットを通す
-		y = evaluator(chainer.Variable(cuda.to_gpu(xa_cpu), volatile='on'))
-		y = cuda.to_cpu(y.data)
+		y = model(x, chainer.flag.ON)
+		y = s.toCpu(y.data) # 最大値検索処理はCPUのが早い？
 
 		# 的中率計算用＆描画用データにセット
-		tvals[i : i + n] = tval = ta_cpu - clsNum
+		tvals[i : i + n] = tval = t - clsNum
 		yvals[i : i + n] = yval = y.argmax(1) - clsNum
 		tyval = tval * yval
 		diff = tval - yval
@@ -494,12 +432,14 @@ def fxPrediction():
 	#		s.batchOffset -= 1
 
 	# モデル取得
-	pred = s.dnn.model
-	pred.train = False
+	model = s.dnn.model
+	model.train = False
 	# 予測元データ取得してニューラルネットを通す
-	y = pred(chainer.Variable(s.xp.asarray([fxGetData(s.fxYenData)], dtype=np.float32), volatile='on'))
-	yvals = cuda.to_cpu(y.data[0]) # np.asarray(y.data[0].tolist(), dtype=np.float32)
-	ox = y.data.argmax(1)[0]
+	dataset = s.fxYenData[-s.dnnIn:,0]
+	x = trainGetXBatchs(model, dataset, np.asarray([0]))
+	y = model(x, chainer.flag.ON)
+	y = s.toCpu(y.data) # 最大値検索処理はCPUのが早い？
+	ox = y.argmax(1)[0]
 
 	# 必要ならグラフ表示を行う
 	if s.grEnable:
