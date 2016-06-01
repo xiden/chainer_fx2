@@ -26,6 +26,12 @@ import mk_clas
 import mk_noai
 
 
+def loadModel(modelFile):
+	"""指定ファイルからモデルを読み込む"""
+	if modelFile and path.isfile(modelFile):
+		print('Load model from', modelFile)
+		serializers.load_npz(modelFile, dnn.model)
+
 def loadModelAndOptimizer():
 	"""モデルとオプティマイザ読み込み"""
 	if modelFile and path.isfile(modelFile):
@@ -89,6 +95,7 @@ parser.add_argument('--dataset', '-d', default='', help='データセット選�
 parser.add_argument('--nettype', '-n', default='', help='ニューラルネットワークタイプ名、INIファイルも書き換わる')
 parser.add_argument('--backupEpoch', '-b', default='', help='学習完了時エポックデータをバックアップするかどうか、INIファイルも書き換わる')
 parser.add_argument('--datasetNoise', '-z', default='', help='データセットに加えるノイズ値範囲、INIファイルも書き換わる')
+parser.add_argument('--wdiff', '-w', default='', help='重み差分表示のエポック指定、-1,-2 の様な形式で指定、0なら最も古いエポック、-1なら最新エポック、-2なら１つ前のエポック、-1,none なら最新エポック内容をそのまま表示')
 
 args = parser.parse_args()
 configFileName = path.join("Configs", args.iniFileName)
@@ -121,6 +128,7 @@ adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴ�
 serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
 backupEpoch = configIni.getInt("backupEpoch", "1") # 学習完了時エポックデータをバックアップするかどうか
 datasetNoise = configIni.getFloat("datasetNoise", "0") # 学習データセットに加えるノイズ値範囲
+wdiff = configIni.getStr("wdiff", "-1,-2") # 重み差分表示のエポック指定、-1,-2 の様な形式で指定、0なら最も古いエポック、-1なら最新エポック、-2なら１つ前のエポック、-1,none なら最新エポック内容をそのまま表示
 
 # コマンドライン引数によるINI設定のオーバーライド
 if len(args.mode) != 0:
@@ -144,6 +152,9 @@ if len(args.backupEpoch) != 0:
 if len(args.datasetNoise) != 0:
 	datasetNoise = float(args.datasetNoise) # データセットに加えるノイズ値範囲オーバーライド
 	configIni.set("datasetNoise", datasetNoise)
+if len(args.wdiff) != 0:
+	wdiff = args.wdiff # 重み差分表示指定をオーバーライド
+	configIni.set("wdiff", wdiff)
 
 # その他グローバル変数初期化
 inMA = (inMA // 2) * 2 + 1 # 入力値移動平均サイズを奇数にする
@@ -178,6 +189,15 @@ resultConfigDir = path.join(resultRootDir, path.splitext(path.basename(configFil
 resultTestDir = None # 試験設定別結果保存ディレクトリ名
 resultHrDir = None # 的中率結果保存ディレクトリ名
 sharedDataset = None # アプリ全体で共有する学習用データセット
+
+# 指定されているモードで実行する内容を取得
+# この変数見て初期化処理を絞る
+mode_DoTrain = mode in ["train", "trainhr", "server"] # 学習するかどうか
+mode_EpochInc = mode in ["train", "trainhr"] # エポック数が増えるかどうか
+mode_ModelCreate = mode in ["train", "trainhr", "testhr", "server", "plotw"] # ネットワークモデルオブジェクト作成するかどうか
+mode_Resume = mode in ["train", "trainhr", "testhr", "server"] # 最後に保存したモデルとオプティマイザを復元するかどうか
+mode_Graph = mode in ["train", "trainhr", "testhr", "server", "testhr_g"] # ネットワークモデル別の学習時グラフ使用するかどうか
+mode_ToGpu = mode in ["train", "trainhr", "testhr", "server"]# モデルをGPU用に変換する必要があるかどうか、学習系行うなら必要
 
 # ネットワークモデルの種類により大域的に変わる処理の初期化を行う
 netClassDef = getattr(net, netType)
@@ -223,30 +243,39 @@ modelFile = testFilePath + ".model"
 stateFile = testFilePath + ".state"
 testFileIni = ini.file(testFilePath + ".ini", "DEFAULT")
 curEpoch = testFileIni.getInt("curEpoch", 0) # 現在の実施済みエポック数取得
-if len(args.train) != 0:
-	# 追加学習エポック数が指定されていたら加算しておく
+
+# エポック数増え得るなら追加学習エポック数加算しておく
+if mode_EpochInc and len(args.train) != 0:
 	train = int(args.train)
 	epoch = curEpoch + train
 	configIni.set("epoch", epoch)
 
-
 # GPU使うならそれ用の数値処理ライブラリ取得
 xp = cuda.cupy if gpu >= 0 else np
 
-if mode != "testhr_g":
-	# モデル別のグラフ処理初期化
+# モデル別のグラフ処理初期化
+if mode_Graph:
 	mk.initGraph(testFileName + ": " + trainDataFile)
 
-	# ネットワークモデルの初期化
+# ネットワークモデルを作成
+if mode_ModelCreate:
 	model.create(dnnIn, numUnits, dnnOut, gpu, True)
 	dnn.model = model
+
+# 保存してあるネットワークモデルから復元
+if mode_Resume:
+	# 指示されているならパラメータを乱数で初期化
 	if netInitParamRandom:
 		for param in dnn.model.params():
 			data = param.data
 			data[:] = np.random.uniform(-netInitParamRandom, netInitParamRandom, data.shape)
-	if gpu >= 0:
-		cuda.get_device(gpu).use()
-		dnn.model.to_gpu()
+
+	# GPU使うならGPU用に変換
+	if mode_ToGpu:
+		if gpu >= 0:
+			print("Convert model to GPU")
+			cuda.get_device(gpu).use()
+			dnn.model.to_gpu()
 
 	# オプティマイザも初期化
 	if optm == "Adam":

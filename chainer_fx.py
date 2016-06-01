@@ -23,5 +23,11 @@ elif s.mode == "trainhr":
 elif s.mode == "testhr_g":
 	# 的中率計測結果表示モード
 	f.testhr_g()
+elif s.mode == "plotw":
+	# モデルの重み可視化
+	f.plotw()
+elif s.mode == "wdiff":
+	# ２つの重みの差分の可視化
+	f.wdiff()
 else:
 	print("Unknown mode " + s.mode)

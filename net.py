@@ -5,6 +5,492 @@ import numpy as np
 from numba import jit
 import mk_clas as c
 
+class OpenHighLowDiv2N10N1(chainer.Chain):
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = unitCount / 2
+		super().__init__(
+			no01_1=L.Linear(inCount, uc1),
+			no01_2=L.Linear(inCount, uc2),
+			nh01_1=L.Linear(inCount, uc1),
+			nh01_2=L.Linear(inCount, uc2),
+			nl01_1=L.Linear(inCount, uc1),
+			nl01_2=L.Linear(inCount, uc2),
+
+			no02_1=L.Linear(uc1, uc1),
+			no02_2=L.Linear(uc2, uc2),
+			nh02_1=L.Linear(uc1, uc1),
+			nh02_2=L.Linear(uc2, uc2),
+			nl02_1=L.Linear(uc1, uc1),
+			nl02_2=L.Linear(uc2, uc2),
+
+			no03_1=L.Linear(uc1, uc1),
+			no03_2=L.Linear(uc2, uc2),
+			nh03_1=L.Linear(uc1, uc1),
+			nh03_2=L.Linear(uc2, uc2),
+			nl03_1=L.Linear(uc1, uc1),
+			nl03_2=L.Linear(uc2, uc2),
+
+			no04_1=L.Linear(uc1, uc1),
+			no04_2=L.Linear(uc2, uc2),
+			nh04_1=L.Linear(uc1, uc1),
+			nh04_2=L.Linear(uc2, uc2),
+			nl04_1=L.Linear(uc1, uc1),
+			nl04_2=L.Linear(uc2, uc2),
+
+			no05_1=L.Linear(uc1, uc1),
+			no05_2=L.Linear(uc2, uc2),
+			nh05_1=L.Linear(uc1, uc1),
+			nh05_2=L.Linear(uc2, uc2),
+			nl05_1=L.Linear(uc1, uc1),
+			nl05_2=L.Linear(uc2, uc2),
+
+			no06_1=L.Linear(uc1, uc1),
+			no06_2=L.Linear(uc2, uc2),
+			nh06_1=L.Linear(uc1, uc1),
+			nh06_2=L.Linear(uc2, uc2),
+			nl06_1=L.Linear(uc1, uc1),
+			nl06_2=L.Linear(uc2, uc2),
+
+			no07_1=L.Linear(uc1, uc1),
+			no07_2=L.Linear(uc2, uc2),
+			nh07_1=L.Linear(uc1, uc1),
+			nh07_2=L.Linear(uc2, uc2),
+			nl07_1=L.Linear(uc1, uc1),
+			nl07_2=L.Linear(uc2, uc2),
+
+			no08_1=L.Linear(uc1, uc1),
+			no08_2=L.Linear(uc2, uc2),
+			nh08_1=L.Linear(uc1, uc1),
+			nh08_2=L.Linear(uc2, uc2),
+			nl08_1=L.Linear(uc1, uc1),
+			nl08_2=L.Linear(uc2, uc2),
+
+			no09_1=L.Linear(uc1, uc1),
+			no09_2=L.Linear(uc2, uc2),
+			nh09_1=L.Linear(uc1, uc1),
+			nh09_2=L.Linear(uc2, uc2),
+			nl09_1=L.Linear(uc1, uc1),
+			nl09_2=L.Linear(uc2, uc2),
+
+			no10_1=L.Linear(uc1, unitCount),
+			no10_2=L.Linear(uc2, unitCount),
+			nh10_1=L.Linear(uc1, unitCount),
+			nh10_2=L.Linear(uc2, unitCount),
+			nl10_1=L.Linear(uc1, unitCount),
+			nl10_2=L.Linear(uc2, unitCount),
+
+			nx11=L.Linear(unitCount, outCount)
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 値取得
+		x1 = chainer.Variable(x[0], volatile=volatile)
+		x2 = chainer.Variable(x[1], volatile=volatile)
+		x3 = chainer.Variable(x[2], volatile=volatile)
+
+		# 次元圧縮して畳み込みの様な効果を期待
+		ho1 = F.relu(m.no01_1(x1))
+		ho2 = F.relu(m.no01_2(x1))
+		hh1 = F.relu(m.nh01_1(x2))
+		hh2 = F.relu(m.nh01_2(x2))
+		hl1 = F.relu(m.nl01_1(x3))
+		hl2 = F.relu(m.nl01_2(x3))
+
+		# それぞれをレイヤに通していく
+		ho1 = F.relu(m.no02_1(ho1))
+		ho2 = F.relu(m.no02_2(ho2))
+		hh1 = F.relu(m.nh02_1(hh1))
+		hh2 = F.relu(m.nh02_2(hh2))
+		hl1 = F.relu(m.nl02_1(hl1))
+		hl2 = F.relu(m.nl02_2(hl2))
+
+		ho1 = F.relu(m.no03_1(ho1))
+		ho2 = F.relu(m.no03_2(ho2))
+		hh1 = F.relu(m.nh03_1(hh1))
+		hh2 = F.relu(m.nh03_2(hh2))
+		hl1 = F.relu(m.nl03_1(hl1))
+		hl2 = F.relu(m.nl03_2(hl2))
+
+		ho1 = F.relu(m.no04_1(ho1))
+		ho2 = F.relu(m.no04_2(ho2))
+		hh1 = F.relu(m.nh04_1(hh1))
+		hh2 = F.relu(m.nh04_2(hh2))
+		hl1 = F.relu(m.nl04_1(hl1))
+		hl2 = F.relu(m.nl04_2(hl2))
+
+		ho1 = F.relu(m.no05_1(ho1))
+		ho2 = F.relu(m.no05_2(ho2))
+		hh1 = F.relu(m.nh05_1(hh1))
+		hh2 = F.relu(m.nh05_2(hh2))
+		hl1 = F.relu(m.nl05_1(hl1))
+		hl2 = F.relu(m.nl05_2(hl2))
+
+		ho1 = F.relu(m.no06_1(ho1))
+		ho2 = F.relu(m.no06_2(ho2))
+		hh1 = F.relu(m.nh06_1(hh1))
+		hh2 = F.relu(m.nh06_2(hh2))
+		hl1 = F.relu(m.nl06_1(hl1))
+		hl2 = F.relu(m.nl06_2(hl2))
+
+		ho1 = F.relu(m.no07_1(ho1))
+		ho2 = F.relu(m.no07_2(ho2))
+		hh1 = F.relu(m.nh07_1(hh1))
+		hh2 = F.relu(m.nh07_2(hh2))
+		hl1 = F.relu(m.nl07_1(hl1))
+		hl2 = F.relu(m.nl07_2(hl2))
+
+		ho1 = F.relu(m.no08_1(ho1))
+		ho2 = F.relu(m.no08_2(ho2))
+		hh1 = F.relu(m.nh08_1(hh1))
+		hh2 = F.relu(m.nh08_2(hh2))
+		hl1 = F.relu(m.nl08_1(hl1))
+		hl2 = F.relu(m.nl08_2(hl2))
+
+		ho1 = F.relu(m.no09_1(ho1))
+		ho2 = F.relu(m.no09_2(ho2))
+		hh1 = F.relu(m.nh09_1(hh1))
+		hh2 = F.relu(m.nh09_2(hh2))
+		hl1 = F.relu(m.nl09_1(hl1))
+		hl2 = F.relu(m.nl09_2(hl2))
+
+		# 同じ次元数に整える
+		ho1 = F.relu(m.no10_1(ho1))
+		ho2 = F.relu(m.no10_2(ho2))
+		hh1 = F.relu(m.nh10_1(hh1))
+		hh2 = F.relu(m.nh10_2(hh2))
+		hl1 = F.relu(m.nl10_1(hl1))
+		hl2 = F.relu(m.nl10_2(hl2))
+
+		# 全レイヤを合成
+		h = hh1 + hh2 + hl1 + hl2 + ho1 + ho2
+
+		# 最後に１レイヤ通す
+		h = m.nx11(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		x = np.zeros(shape=(3, batchSize, inCount), dtype=np.float32)
+		for i, p in enumerate(batchIndices):
+			pe = p + inCount
+			o = dataset[0, p : pe]
+			a = (o.max() + o.min()) * 0.5
+			x[0,i,:] = o - a
+			x[1,i,:] = o - dataset[1, p : pe]
+			x[2,i,:] = o - dataset[2, p : pe]
+		return x
+
+	def getModelKind(m):
+		return "clas"
+
+
+class OpenDiv5N10N1(chainer.Chain):
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = 8 * unitCount // 10
+		uc3 = 6 * unitCount // 10
+		uc4 = 4 * unitCount // 10
+		uc5 = 2 * unitCount // 10
+		uc6 = 3 * unitCount // 10
+		super().__init__(
+			n1_1=L.Linear(inCount, uc1),
+			n1_2=L.Linear(inCount, uc2),
+			n1_3=L.Linear(inCount, uc3),
+			n1_4=L.Linear(inCount, uc4),
+			n1_5=L.Linear(inCount, uc5),
+
+			n2_1=L.Linear(uc1, uc1),
+			n2_2=L.Linear(uc2, uc2),
+			n2_3=L.Linear(uc3, uc3),
+			n2_4=L.Linear(uc4, uc4),
+			n2_5=L.Linear(uc5, uc5),
+
+			n3_1=L.Linear(uc1, uc1),
+			n3_2=L.Linear(uc2, uc2),
+			n3_3=L.Linear(uc3, uc3),
+			n3_4=L.Linear(uc4, uc4),
+			n3_5=L.Linear(uc5, uc5),
+
+			n4_1=L.Linear(uc1, uc1),
+			n4_2=L.Linear(uc2, uc2),
+			n4_3=L.Linear(uc3, uc3),
+			n4_4=L.Linear(uc4, uc4),
+			n4_5=L.Linear(uc5, uc5),
+
+			n5_1=L.Linear(uc1, uc1),
+			n5_2=L.Linear(uc2, uc2),
+			n5_3=L.Linear(uc3, uc3),
+			n5_4=L.Linear(uc4, uc4),
+			n5_5=L.Linear(uc5, uc5),
+
+			n6_1=L.Linear(uc1, uc1),
+			n6_2=L.Linear(uc2, uc2),
+			n6_3=L.Linear(uc3, uc3),
+			n6_4=L.Linear(uc4, uc4),
+			n6_5=L.Linear(uc5, uc5),
+
+			n7_1=L.Linear(uc1, uc1),
+			n7_2=L.Linear(uc2, uc2),
+			n7_3=L.Linear(uc3, uc3),
+			n7_4=L.Linear(uc4, uc4),
+			n7_5=L.Linear(uc5, uc5),
+
+			n8_1=L.Linear(uc1, uc1),
+			n8_2=L.Linear(uc2, uc2),
+			n8_3=L.Linear(uc3, uc3),
+			n8_4=L.Linear(uc4, uc4),
+			n8_5=L.Linear(uc5, uc5),
+
+			n9_1=L.Linear(uc1, uc1),
+			n9_2=L.Linear(uc2, uc2),
+			n9_3=L.Linear(uc3, uc3),
+			n9_4=L.Linear(uc4, uc4),
+			n9_5=L.Linear(uc5, uc5),
+
+			n10_1=L.Linear(uc1, uc6),
+			n10_2=L.Linear(uc2, uc6),
+			n10_3=L.Linear(uc3, uc6),
+			n10_4=L.Linear(uc4, uc6),
+			n10_5=L.Linear(uc5, uc6),
+
+			n11=L.Linear(uc6, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 値取得
+		x = chainer.Variable(x, volatile=volatile)
+
+		# ４種類の次元数に圧縮
+		h1 = F.relu(m.n1_1(x))
+		h2 = F.relu(m.n1_2(x))
+		h3 = F.relu(m.n1_3(x))
+		h4 = F.relu(m.n1_4(x))
+		h5 = F.relu(m.n1_5(x))
+
+		# 圧縮された次元数で5レイヤ分処理
+		h1 = F.relu(m.n2_1(h1))
+		h2 = F.relu(m.n2_2(h2))
+		h3 = F.relu(m.n2_3(h3))
+		h4 = F.relu(m.n2_4(h4))
+		h5 = F.relu(m.n2_5(h5))
+
+		h1 = F.relu(m.n3_1(h1))
+		h2 = F.relu(m.n3_2(h2))
+		h3 = F.relu(m.n3_3(h3))
+		h4 = F.relu(m.n3_4(h4))
+		h5 = F.relu(m.n3_5(h5))
+
+		h1 = F.relu(m.n4_1(h1))
+		h2 = F.relu(m.n4_2(h2))
+		h3 = F.relu(m.n4_3(h3))
+		h4 = F.relu(m.n4_4(h4))
+		h5 = F.relu(m.n4_5(h5))
+
+		h1 = F.relu(m.n5_1(h1))
+		h2 = F.relu(m.n5_2(h2))
+		h3 = F.relu(m.n5_3(h3))
+		h4 = F.relu(m.n5_4(h4))
+		h5 = F.relu(m.n5_5(h5))
+
+		h1 = F.relu(m.n6_1(h1))
+		h2 = F.relu(m.n6_2(h2))
+		h3 = F.relu(m.n6_3(h3))
+		h4 = F.relu(m.n6_4(h4))
+		h5 = F.relu(m.n6_5(h5))
+
+		h1 = F.relu(m.n7_1(h1))
+		h2 = F.relu(m.n7_2(h2))
+		h3 = F.relu(m.n7_3(h3))
+		h4 = F.relu(m.n7_4(h4))
+		h5 = F.relu(m.n7_5(h5))
+
+		h1 = F.relu(m.n8_1(h1))
+		h2 = F.relu(m.n8_2(h2))
+		h3 = F.relu(m.n8_3(h3))
+		h4 = F.relu(m.n8_4(h4))
+		h5 = F.relu(m.n8_5(h5))
+
+		h1 = F.relu(m.n9_1(h1))
+		h2 = F.relu(m.n9_2(h2))
+		h3 = F.relu(m.n9_3(h3))
+		h4 = F.relu(m.n9_4(h4))
+		h5 = F.relu(m.n9_5(h5))
+
+		# 同じ次元数に整える
+		h1 = F.relu(m.n10_1(h1))
+		h2 = F.relu(m.n10_2(h2))
+		h3 = F.relu(m.n10_3(h3))
+		h4 = F.relu(m.n10_4(h4))
+		h5 = F.relu(m.n10_5(h5))
+
+		# 全レイヤを加算
+		h = h1 + h2 + h3 + h4 + h5
+
+		# 最後に１レイヤ通す
+		h = m.n11(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		x = np.zeros(shape=(batchSize, inCount), dtype=np.float32)
+		for i, p in enumerate(batchIndices):
+			f = dataset[0, p : p + inCount]
+			x[i,:] = f - (f.max() + f.min()) * 0.5
+		return x
+
+	def getModelKind(m):
+		return "clas"
+
+
+class OpenDiv5N6N1(chainer.Chain):
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = 8 * unitCount // 10
+		uc3 = 6 * unitCount // 10
+		uc4 = 4 * unitCount // 10
+		uc5 = 2 * unitCount // 10
+		uc6 = 3 * unitCount // 10
+		super().__init__(
+			n1_1=L.Linear(inCount, uc1),
+			n1_2=L.Linear(inCount, uc2),
+			n1_3=L.Linear(inCount, uc3),
+			n1_4=L.Linear(inCount, uc4),
+			n1_5=L.Linear(inCount, uc5),
+
+			n2_1=L.Linear(uc1, uc1),
+			n2_2=L.Linear(uc2, uc2),
+			n2_3=L.Linear(uc3, uc3),
+			n2_4=L.Linear(uc4, uc4),
+			n2_5=L.Linear(uc5, uc5),
+
+			n3_1=L.Linear(uc1, uc1),
+			n3_2=L.Linear(uc2, uc2),
+			n3_3=L.Linear(uc3, uc3),
+			n3_4=L.Linear(uc4, uc4),
+			n3_5=L.Linear(uc5, uc5),
+
+			n4_1=L.Linear(uc1, uc1),
+			n4_2=L.Linear(uc2, uc2),
+			n4_3=L.Linear(uc3, uc3),
+			n4_4=L.Linear(uc4, uc4),
+			n4_5=L.Linear(uc5, uc5),
+
+			n5_1=L.Linear(uc1, uc1),
+			n5_2=L.Linear(uc2, uc2),
+			n5_3=L.Linear(uc3, uc3),
+			n5_4=L.Linear(uc4, uc4),
+			n5_5=L.Linear(uc5, uc5),
+
+			n6_1=L.Linear(uc1, uc6),
+			n6_2=L.Linear(uc2, uc6),
+			n6_3=L.Linear(uc3, uc6),
+			n6_4=L.Linear(uc4, uc6),
+			n6_5=L.Linear(uc5, uc6),
+
+			n7=L.Linear(uc6, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 値取得
+		x = chainer.Variable(x, volatile=volatile)
+
+		# ４種類の次元数に圧縮
+		h1 = F.relu(m.n1_1(x))
+		h2 = F.relu(m.n1_2(x))
+		h3 = F.relu(m.n1_3(x))
+		h4 = F.relu(m.n1_4(x))
+		h5 = F.relu(m.n1_5(x))
+
+		# 圧縮された次元数で5レイヤ分処理
+		h1 = F.relu(m.n2_1(h1))
+		h2 = F.relu(m.n2_2(h2))
+		h3 = F.relu(m.n2_3(h3))
+		h4 = F.relu(m.n2_4(h4))
+		h5 = F.relu(m.n2_5(h5))
+
+		h1 = F.relu(m.n3_1(h1))
+		h2 = F.relu(m.n3_2(h2))
+		h3 = F.relu(m.n3_3(h3))
+		h4 = F.relu(m.n3_4(h4))
+		h5 = F.relu(m.n3_5(h5))
+
+		h1 = F.relu(m.n4_1(h1))
+		h2 = F.relu(m.n4_2(h2))
+		h3 = F.relu(m.n4_3(h3))
+		h4 = F.relu(m.n4_4(h4))
+		h5 = F.relu(m.n4_5(h5))
+
+		h1 = F.relu(m.n5_1(h1))
+		h2 = F.relu(m.n5_2(h2))
+		h3 = F.relu(m.n5_3(h3))
+		h4 = F.relu(m.n5_4(h4))
+		h5 = F.relu(m.n5_5(h5))
+
+		# 同じ次元数に整える
+		h1 = F.relu(m.n6_1(h1))
+		h2 = F.relu(m.n6_2(h2))
+		h3 = F.relu(m.n6_3(h3))
+		h4 = F.relu(m.n6_4(h4))
+		h5 = F.relu(m.n6_5(h5))
+
+		# 全レイヤを加算
+		h = h1 + h2 + h3 + h4 + h5
+
+		# 最後に１レイヤ通す
+		h = m.n7(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		x = np.zeros(shape=(batchSize, inCount), dtype=np.float32)
+		for i, p in enumerate(batchIndices):
+			f = dataset[0, p : p + inCount]
+			x[i,:] = f - (f.max() + f.min()) * 0.5
+		return x
+
+	def getModelKind(m):
+		return "clas"
+
 
 class OpenDiv4N6N1(chainer.Chain):
 	def __init__(m):

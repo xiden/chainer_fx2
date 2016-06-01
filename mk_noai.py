@@ -18,14 +18,18 @@ threshold=0.01 # 売買判定オーバー閾値
 
 lastLabel = None
 lastColor = None
-maSize = 0 # 移動平均カーネルサイズ
-kernel = None # 移動平均用カーネル
+maSize1 = 0 # 移動平均カーネルサイズ
+maSize2 = 0 # 移動平均カーネルサイズ
+kernel1 = None # 移動平均用カーネル
+kernel2 = None # 移動平均用カーネル
 maxMaLevel = 30 # 最大移動平均線数
 dataset = None # グラフ描画するデータセット
 datasetLength = 0 # dataset のデータ長
 datasetX = None # dataset に対応するX座標値
-dataMaH = None # dataset 内の高値の移動平均後データ
-dataMaL = None # dataset 内の低値の移動平均後データ
+dataMaH1 = None # dataset 内の高値の移動平均後データ
+dataMaL1 = None # dataset 内の低値の移動平均後データ
+dataMaH2 = None # dataset 内の高値の移動平均後データ
+dataMaL2 = None # dataset 内の低値の移動平均後データ
 lines = [] # ライン一覧
 
 class Dnn(object):
@@ -93,16 +97,14 @@ def addIntersectPoints(data, madata, madataIsLow, color):
 		ln, = plt.plot(xvals, yvals, "o", color=color, markersize=8)
 		lines.append(ln)
 
-def addLines(data, madata, label, color):
+def addMaLines(isLow, madata, label, color):
 	"""
-	指定データと指定移動平均レベルのラインを追加、追加されたラインは管理リストにも追加される
+	移動平均ラインと注文または決済シグナルラインを追加、追加されたラインは管理リストにも追加される
 	"""
 	color = np.append(color, [1.0])
 	white = np.copy(color)
 	white[3] = 0.0
 
-	isLow = madata is dataMaL
-	addLine(data, label=label, color=color)
 	addLine(madata, label=label, color=(white + color) / 2)
 	addIntersectPoints(dataset[1 if isLow else 2], madata, isLow, color)
 
@@ -119,16 +121,20 @@ def init(iniFileName):
 	global maLevel
 	global leastSquaresLen
 	global threshold
-	global maSize
-	global kernel
+	global maSize1
+	global maSize2
+	global kernel1
+	global kernel2
 
 	configIni = ini.file(iniFileName, "NOAI")
-	maLevel = configIni.getInt("maLevel", 1)
+	maLevel = configIni.getInt("maLevel", 0)
 	leastSquaresLen = configIni.getInt("leastSquaresLen", 10)
 	threshold = configIni.getFloat("threshold", 0.01)
 
-	maSize = 3 + maLevel * 2
-	kernel = gaussianKernel(maSize, 3)
+	maSize1 = 3 + maLevel * 2
+	maSize2 = 3 + (maLevel + 2) * 2
+	kernel1 = gaussianKernel(maSize1, 3)
+	kernel2 = gaussianKernel(maSize2, 3)
 
 	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen # 学習結果の評価に必要な最小データ数
@@ -138,7 +144,7 @@ def init(iniFileName):
 	# ニューラルネットの出力次元数
 	s.dnnOut = 0
 
-	s.fxRetLen = 3 # クライアントに返す結果データ長
+	s.fxRetLen = 6 # クライアントに返す結果データ長
 	s.fxInitialYenDataLen = s.minEvalLen # 初期化時にMT4から送る必要がある円データ数
 
 def initGraph(windowCaption):
@@ -185,6 +191,12 @@ def predByDiff(data, n):
 		data[l + i] = t
 	return data
 
+def addDiff(data):
+	"""指定されたデータの差分を加算し位相を進めたような効果を期待"""
+	d = np.diff(data)
+	return data[-d.shape[0]:] + d
+
+
 
 def fxPrediction():
 	"""
@@ -193,23 +205,28 @@ def fxPrediction():
 	global dataset
 	global datasetLength
 	global datasetX
-	global dataMaH
-	global dataMaL
+	global dataMaH1
+	global dataMaL1
+	global dataMaH2
+	global dataMaL2
 	global lines
 
 	# 現在のデータ取得
 	dataset = s.fxYenData[-s.frameSize:].transpose()
 	datasetLength = dataset.shape[1]
-	datasetX = np.arange(0, datasetLength, 1)
 
 	# 移動平均
-	dataMaH = np.convolve(dataset[1], kernel, 'valid')
-	dataMaL = np.convolve(dataset[2], kernel, 'valid')
+	n1 = datasetLength if s.grEnable else maSize1 + 1
+	n2 = datasetLength if s.grEnable else maSize2 + 1
+	dataMaH1 = addDiff(np.convolve(dataset[1, :n1], kernel1, 'valid'))
+	dataMaL1 = addDiff(np.convolve(dataset[2, :n1], kernel1, 'valid'))
+	dataMaH2 = addDiff(np.convolve(dataset[1, :n2], kernel2, 'valid'))
+	dataMaL2 = addDiff(np.convolve(dataset[2, :n2], kernel2, 'valid'))
 
-	# 変化量で減ったデータを予測
-	n = maSize // 2
-	dataMaH = predByDiff(dataMaH, n)
-	dataMaL = predByDiff(dataMaL, n)
+	## 変化量で減ったデータを予測
+	#n = maSize // 2
+	#dataMaH = predByDiff(dataMaH, n)
+	#dataMaL = predByDiff(dataMaL, n)
 
 	## 最小二乗法で減ったデータを予測
 	#xma = datasetX[-leastSquaresLen:]
@@ -221,24 +238,41 @@ def fxPrediction():
 
 	# 必要ならグラフ表示を行う
 	if s.grEnable:
+		datasetX = np.arange(0, datasetLength, 1)
 		for ln in lines:
 			ln.remove()
 		lines = []
 		addLine(dataset[0], label="open", color=np.asarray([0, 0.5, 0.5], dtype=np.float64))
-		addLines(dataset[1], dataMaH, label="high", color=np.asarray([1, 0, 0], dtype=np.float64))
-		addLines(dataset[2], dataMaL, label="low", color=np.asarray([0, 0, 1], dtype=np.float64))
+		addLine(dataset[1], label="high", color=np.asarray([1, 0, 0], dtype=np.float64))
+		addLine(dataset[2], label="low", color=np.asarray([0, 0, 1], dtype=np.float64))
 		addLine(dataset[3], label="close", color=np.asarray([0.5, 0.5, 0.5], dtype=np.float64))
+		addMaLines(False, dataMaH1, label="high", color=np.asarray([1, 0, 0], dtype=np.float64))
+		addMaLines(True, dataMaL1, label="low", color=np.asarray([0, 0, 1], dtype=np.float64))
+		addMaLines(False, dataMaH2, label="high", color=np.asarray([0.5, 0, 0], dtype=np.float64))
+		addMaLines(True, dataMaL2, label="low", color=np.asarray([0, 0, 0.5], dtype=np.float64))
 		plt.ylim(f.npMaxMin([dataset[1], dataset[2]]))
 		plt.legend(loc='lower left') # 凡例表示
 		plt.draw()
 		plt.pause(0.001)
 
-	value = 0.0
-	if dataset[1,-1] <= dataMaL[-1] - threshold:
+	# 注文判定用の値を設定
+	h = dataset[1,-1]
+	l = dataset[2,-1]
+	v1 = 0.0
+	if h <= dataMaL1[-1] - threshold:
 		# 高値の最終値が低値移動平均を下回ったら下がるんじゃないかな？
-		value = -1.0
-	elif dataMaH[-1] + threshold <= dataset[2,-1]:
+		v1 = -1.0
+	elif dataMaH1[-1] + threshold <= l:
 		# 低値の最終値が高値移動平均を上回ったら上がるんじゃないかな？
-		value = 1.0
+		v1 = 1.0
 
-	return np.asarray([value, value, value], dtype=np.float32)
+	# 決済判定用の値を設定
+	v2 = 0.0
+	if h <= dataMaL2[-1] - threshold:
+		# 高値の最終値が低値移動平均を下回ったら下がるんじゃないかな？
+		v2 = -1.0
+	elif dataMaH2[-1] + threshold <= l:
+		# 低値の最終値が高値移動平均を上回ったら上がるんじゃないかな？
+		v2 = 1.0
+
+	return np.asarray([v1, v1, v1, v2, v2, v2], dtype=np.float32)

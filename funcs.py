@@ -10,11 +10,13 @@ import os.path as path
 import win32api
 import win32con
 import time
+import math
 from pathlib import Path
 from numba import jit
 import numpy as np
 import chainer.cuda as cuda
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 import share as s
 
 
@@ -298,13 +300,131 @@ def train():
 	# モデルとオプティマイザ保存
 	s.saveModelAndOptimizer()
 
+	# エポック別フォルダへコピー
+	print("Saving current epoch.")
+	epochDir = mkEpochDir(s.curEpoch)
+	shutil.copy(s.configFileName, epochDir)
+	shutil.copy(s.testFilePath + ".ini", epochDir)
 	if s.backupEpoch:
-		# エポック別フォルダへコピー
-		print("Saving current epoch.")
-		epochDir = path.join(s.resultTestDir, "e" + str(s.curEpoch))
-		if not path.isdir(epochDir):
-			os.mkdir(epochDir)
 		shutil.copy(s.modelFile, epochDir)
 		shutil.copy(s.stateFile, epochDir)
-		shutil.copy(s.configFileName, epochDir)
-		shutil.copy(s.testFilePath + ".ini", epochDir)
+
+def getEpochDir(epoch):
+	return path.join(s.resultTestDir, "e" + str(epoch))
+
+def mkEpochDir(epoch):
+	epochDir = getEpochDir(epoch)
+	if not path.isdir(epochDir):
+		os.mkdir(epochDir)
+	return epochDir
+
+def plotw():
+	"""
+	モデルの重みを可視化＆ファイル保存
+	"""
+
+	print('Weight plot mode')
+
+	s.loadModel(s.modelFile)
+	model = s.dnn.model
+	links = []
+	for l in model.links(skipself=True):
+		links.append(l)
+
+	# 重みを画像として表示する
+	if s.grEnable:
+		links = sorted(links, key=lambda x: x.name)
+		n = len(links)
+		nh = int(math.sqrt(n / (1920 / 1080)))
+		nw = int(math.ceil(n / nh))
+		nn = nh * nw
+
+		fig, axes = plt.subplots(nh, nw)
+		fig.subplots_adjust(top=1.0, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.0)
+		fig.canvas.set_window_title("Epoch " + str(s.curEpoch))
+
+		for i in range(nn):
+			ax = axes[i // nw, i % nw]
+			if i < n:
+				l = links[i]
+				ax.set_title(l.name)
+				ax.imshow(l.W.data, interpolation="bicubic")
+				ax.xaxis.set_visible(False)
+				ax.yaxis.set_visible(False)
+				ax.axis("image")
+			else:
+				ax.set_axis_off()
+		plt.show()
+
+	# 重みをファイルに保存する
+	epochDir = mkEpochDir(s.curEpoch)
+	for l in links:
+		np.save(path.join(epochDir, l.name + ".w"), l.W.data)
+		np.save(path.join(epochDir, l.name + ".b"), l.b.data)
+
+def wdiff():
+	"""
+	保存してある重みの差分を表示する
+	"""
+
+	print('Weight diff mode')
+
+
+	# 保存してあるエポックディレクトリ取得
+	p = Path(s.resultTestDir)
+	pls = list(p.glob("e[0-9]*"))
+	epochs = []
+	for pl in pls:
+		name = pl.name
+		if path.isdir(path.join(s.resultTestDir, name)):
+			epochs.append(int(name[1:]))
+	epochs.sort()
+
+	# ２つのエポック保存ディレクトリ名取得
+	te = s.wdiff.split(",")
+	e1 = int(te[0])
+	e2 = int(te[1]) if te[1] != "none" else None
+	nf = te[2] if 3 <= len(te) else None
+	dir1 = getEpochDir(epochs[e1])
+	dir2 = None if e2 is None else getEpochDir(epochs[e2])
+
+	# 重みデータファイルを読み込んでいく
+	weights = []
+	p = Path(dir1)
+	pls = list(p.glob("*.w.npy" if nf is None else nf + ".w.npy"))
+	for pl in pls:
+		name = pl.name
+		a1 = np.load(path.join(dir1, name))
+		a2 = None if e2 is None else np.load(path.join(dir2, name))
+		weights.append((name[:-6], a1, a2))
+	weights.sort(key=lambda k: k[0])
+
+	# グラフ表示
+	n = len(weights)
+	nh = int(math.ceil(math.sqrt(n / (1920 / 1080))))
+	nw = int(math.ceil(n / nh))
+	nn = nh * nw
+
+	fig, axes = plt.subplots(nh, nw)
+	fig.subplots_adjust(top=0.97, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.15)
+	if e2 is None:
+		fig.canvas.set_window_title("Epoch {0}".format(epochs[e1]))
+	else:
+		fig.canvas.set_window_title("Epoch {0} - {1}".format(epochs[e1], epochs[e2]))
+
+	for i in range(nn):
+		ax = axes if n == 1 else axes[i // nw, i % nw]
+		if i < n:
+			w = weights[i]
+			ax.set_title(w[0])
+			im = ax.imshow(w[1] if e2 is None else w[1] - w[2], interpolation="nearest")
+			if n == 1:
+				divider = make_axes_locatable(ax)
+				cax = divider.append_axes("right", size="5%", pad=0.05)
+				cbar = plt.colorbar(im, cax=cax)
+			ax.xaxis.set_visible(False)
+			ax.yaxis.set_visible(False)
+			ax.axis("image")
+		else:
+			ax.set_axis_off()
+	plt.show()
