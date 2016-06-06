@@ -178,6 +178,9 @@ orleans.codegen.cs
 *.csv
 *.state
 *.model
+*.db
+*.bak
+*.exe
 
 # RIA/Silverlight projects
 Generated_Code/
