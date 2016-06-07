@@ -5,6 +5,112 @@ import numpy as np
 from numba import jit
 import mk_clas as c
 
+
+class OpenHighLowSqwzN6N5(chainer.Chain):
+	"""
+	絞って混ぜて広げていくスタイル
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = 8 * unitCount // 10
+		uc2 = 6 * unitCount // 10
+		uc3 = 4 * unitCount // 10
+		uc4 = 2 * unitCount // 10
+		uc5 = 1 * unitCount // 10
+		super().__init__(
+			no01=L.Linear(inCount, uc1),
+			nh01=L.Linear(inCount, uc1),
+			nl01=L.Linear(inCount, uc1),
+
+			no02=L.Linear(uc1, uc2),
+			nh02=L.Linear(uc1, uc2),
+			nl02=L.Linear(uc1, uc2),
+
+			no03=L.Linear(uc2, uc3),
+			nh03=L.Linear(uc2, uc3),
+			nl03=L.Linear(uc2, uc3),
+
+			no04=L.Linear(uc3, uc4),
+			nh04=L.Linear(uc3, uc4),
+			nl04=L.Linear(uc3, uc4),
+
+			no05=L.Linear(uc4, uc5),
+			nh05=L.Linear(uc4, uc5),
+			nl05=L.Linear(uc4, uc5),
+
+			no06=L.Linear(uc5, uc5),
+			nh06=L.Linear(uc5, uc5),
+			nl06=L.Linear(uc5, uc5),
+
+			nx07=L.Linear(uc5, uc4),
+			nx08=L.Linear(uc4, uc3),
+			nx09=L.Linear(uc3, uc2),
+			nx10=L.Linear(uc2, uc1),
+			nx11=L.Linear(uc1, outCount)
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 開始値、高値、低値それぞれを絞る
+		h = F.relu(m.no01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.relu(m.no02(h))
+		h = F.relu(m.no03(h))
+		h = F.relu(m.no04(h))
+		h = F.relu(m.no05(h))
+		ho = F.relu(m.no06(h))
+
+		h = F.relu(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.relu(m.nh02(h))
+		h = F.relu(m.nh03(h))
+		h = F.relu(m.nh04(h))
+		h = F.relu(m.nh05(h))
+		hh = F.relu(m.nh06(h))
+
+		h = F.relu(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.relu(m.nl02(h))
+		h = F.relu(m.nl03(h))
+		h = F.relu(m.nl04(h))
+		h = F.relu(m.nl05(h))
+		hl = F.relu(m.nl06(h))
+
+		# 混ぜる
+		h = hh * 0.25 + hl * 0.25 + ho * 0.5
+
+		# 広げていく
+		h = F.relu(m.nx07(h))
+		h = F.relu(m.nx08(h))
+		h = F.relu(m.nx09(h))
+		h = F.relu(m.nx10(h))
+		h = m.nx11(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		x = np.zeros(shape=(3, batchSize, inCount), dtype=np.float32)
+		for i, p in enumerate(batchIndices):
+			pe = p + inCount
+			o = dataset[0, p : pe]
+			a = (o.max() + o.min()) * 0.5
+			x[0,i,:] = o - a
+			x[1,i,:] = dataset[1, p : pe] - a
+			x[2,i,:] = dataset[2, p : pe] - a
+		return x
+
+	def getModelKind(m):
+		return "clas"
+
+
 class OpenHighLowDiv2N10N1(chainer.Chain):
 	def __init__(m):
 		pass

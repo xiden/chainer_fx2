@@ -345,10 +345,11 @@ def plotw():
 
 		for i in range(nn):
 			ax = axes[i // nw, i % nw]
-			if i < n:
-				l = links[i]
+			l = links[i] if i < n else None
+			if l is not None:
 				ax.set_title(l.name)
-				ax.imshow(l.W.data, interpolation="bicubic")
+				d = l.W.data
+				ax.imshow(d if len(d.shape) == 2 else d[0], interpolation="nearest")
 				ax.xaxis.set_visible(False)
 				ax.yaxis.set_visible(False)
 				ax.axis("image")
@@ -383,7 +384,7 @@ def wdiff():
 	# ２つのエポック保存ディレクトリ名取得
 	te = s.wdiff.split(",")
 	e1 = int(te[0])
-	e2 = int(te[1]) if te[1] != "none" else None
+	e2 = int(te[1]) if te[1] != "n" else None
 	nf = te[2] if 3 <= len(te) else None
 	dir1 = getEpochDir(epochs[e1])
 	dir2 = None if e2 is None else getEpochDir(epochs[e2])
@@ -417,7 +418,13 @@ def wdiff():
 		if i < n:
 			w = weights[i]
 			ax.set_title(w[0])
-			im = ax.imshow(w[1] if e2 is None else w[1] - w[2], interpolation="nearest")
+			w1 = w[1]
+			w2 = w[2]
+			if len(w1.shape) != 2:
+				w1 = w1[0]
+				if w2 is not None:
+					w2 = w2[0]
+			im = ax.imshow(w1 if e2 is None else w1 - w2, interpolation="nearest")
 			if n == 1:
 				divider = make_axes_locatable(ax)
 				cax = divider.append_axes("right", size="5%", pad=0.05)

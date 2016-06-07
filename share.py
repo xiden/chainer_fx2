@@ -115,11 +115,11 @@ inMA = configIni.getInt("inMA", "5") # 入力値の移動平均サイズ
 frameSize = configIni.getInt("frameSize", "300") # 入力分足数
 batchSize = configIni.getInt("batchSize", "20") # バッチ数
 batchRandom = configIni.getInt("batchRandom", "1") # バッチ位置をランダムにするかどうか
-gradClip = configIni.getFloat("gradClip", "5") # 勾配クリップ
-grEnable = configIni.getInt("grEnable", "0") # グラフ表示有効かどうか
+gradClip = configIni.getFloat("gradClip", "0") # 勾配クリップ
+grEnable = configIni.getInt("grEnable", "1") # グラフ表示有効かどうか
 evalInterval = configIni.getInt("evalInterval", "20") # 評価（グラフも）間隔エポック数
 itrCountInterval = configIni.getInt("itrCountInterval", "10") # イタレーション速度計測間隔
-predLen = configIni.getInt("predLen", "1") # 未来予測の分足数
+predLen = configIni.getInt("predLen", "10") # 未来予測の分足数
 predAve = configIni.getInt("predAve", "1") # 未来予測分を平均化するかどうか
 optm = configIni.getStr("optm", "Adam") # 勾配計算最適化オブジェクトタイプ
 adamAlpha = configIni.getFloat("adamAlpha", "0.001") # Adamアルゴリズムのα値
@@ -127,8 +127,8 @@ adaDeltaRho = configIni.getFloat("adaDeltaRho", "0.95") # AdaDeltaアルゴリ�
 adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴリズムのeps値
 serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
 backupEpoch = configIni.getInt("backupEpoch", "1") # 学習完了時エポックデータをバックアップするかどうか
-datasetNoise = configIni.getFloat("datasetNoise", "0") # 学習データセットに加えるノイズ値範囲
-wdiff = configIni.getStr("wdiff", "-1,-2") # 重み差分表示のエポック指定、-1,-2 の様な形式で指定、0なら最も古いエポック、-1なら最新エポック、-2なら１つ前のエポック、-1,none なら最新エポック内容をそのまま表示
+datasetNoise = configIni.getFloat("datasetNoise", "0.005") # 学習データセットに加えるノイズ値範囲
+wdiff = configIni.getStr("wdiff", "-1,n") # 重み差分表示のエポック指定、-1,-2 の様な形式で指定、0なら最も古いエポック、-1なら最新エポック、-2なら１つ前のエポック、-1,none なら最新エポック内容をそのまま表示
 
 # コマンドライン引数によるINI設定のオーバーライド
 if len(args.mode) != 0:
