@@ -6,19 +6,19 @@ from numba import jit
 import mk_clas as c
 
 
-class OpenHighLowSqwzN6N5(chainer.Chain):
+class OpenHighLowN6N5(chainer.Chain):
 	"""
-	絞って混ぜて広げていくスタイル
+	絞らず混ぜていくスタイル
 	"""
 	def __init__(m):
 		pass
 
 	def create(m, inCount, unitCount, outCount, gpu, train=True):
-		uc1 = 8 * unitCount // 10
-		uc2 = 6 * unitCount // 10
-		uc3 = 4 * unitCount // 10
-		uc4 = 2 * unitCount // 10
-		uc5 = 1 * unitCount // 10
+		uc1 = unitCount
+		uc2 = unitCount
+		uc3 = unitCount
+		uc4 = unitCount
+		uc5 = unitCount
 		super().__init__(
 			no01=L.Linear(inCount, uc1),
 			nh01=L.Linear(inCount, uc1),
@@ -59,7 +59,7 @@ class OpenHighLowSqwzN6N5(chainer.Chain):
 
 	#@jit(nopython=True)
 	def __call__(m, x, volatile):
-		# 開始値、高値、低値それぞれを絞る
+		# 開始値、高値、低値それぞれを通す
 		h = F.relu(m.no01(chainer.Variable(x[0], volatile=volatile)))
 		h = F.relu(m.no02(h))
 		h = F.relu(m.no03(h))
@@ -84,7 +84,6 @@ class OpenHighLowSqwzN6N5(chainer.Chain):
 		# 混ぜる
 		h = hh * 0.25 + hl * 0.25 + ho * 0.5
 
-		# 広げていく
 		h = F.relu(m.nx07(h))
 		h = F.relu(m.nx08(h))
 		h = F.relu(m.nx09(h))
@@ -97,7 +96,7 @@ class OpenHighLowSqwzN6N5(chainer.Chain):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
 		batchSize = batchIndices.shape[0]
 		inCount = m.inCount
-		x = np.zeros(shape=(3, batchSize, inCount), dtype=np.float32)
+		x = np.empty(shape=(3, batchSize, inCount), dtype=np.float32)
 		for i, p in enumerate(batchIndices):
 			pe = p + inCount
 			o = dataset[0, p : pe]
@@ -290,7 +289,7 @@ class OpenHighLowDiv2N10N1(chainer.Chain):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
 		batchSize = batchIndices.shape[0]
 		inCount = m.inCount
-		x = np.zeros(shape=(3, batchSize, inCount), dtype=np.float32)
+		x = np.empty(shape=(3, batchSize, inCount), dtype=np.float32)
 		for i, p in enumerate(batchIndices):
 			pe = p + inCount
 			o = dataset[0, p : pe]
@@ -465,7 +464,7 @@ class OpenDiv5N10N1(chainer.Chain):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
 		batchSize = batchIndices.shape[0]
 		inCount = m.inCount
-		x = np.zeros(shape=(batchSize, inCount), dtype=np.float32)
+		x = np.empty(shape=(batchSize, inCount), dtype=np.float32)
 		for i, p in enumerate(batchIndices):
 			f = dataset[0, p : p + inCount]
 			x[i,:] = f - (f.max() + f.min()) * 0.5
@@ -588,7 +587,7 @@ class OpenDiv5N6N1(chainer.Chain):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
 		batchSize = batchIndices.shape[0]
 		inCount = m.inCount
-		x = np.zeros(shape=(batchSize, inCount), dtype=np.float32)
+		x = np.empty(shape=(batchSize, inCount), dtype=np.float32)
 		for i, p in enumerate(batchIndices):
 			f = dataset[0, p : p + inCount]
 			x[i,:] = f - (f.max() + f.min()) * 0.5
@@ -705,7 +704,7 @@ class OpenDiv4N6N1(chainer.Chain):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
 		batchSize = batchIndices.shape[0]
 		inCount = m.inCount
-		x = np.zeros(shape=(batchSize, inCount), dtype=np.float32)
+		x = np.empty(shape=(batchSize, inCount), dtype=np.float32)
 		for i, p in enumerate(batchIndices):
 			f = dataset[0, p : p + inCount]
 			x[i,:] = f - (f.max() + f.min()) * 0.5
@@ -770,7 +769,7 @@ class N15ReluSqueeze(chainer.Chain):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
 		batchSize = batchIndices.shape[0]
 		inCount = m.inCount
-		x = np.zeros(shape=(batchSize, inCount), dtype=np.float32)
+		x = np.empty(shape=(batchSize, inCount), dtype=np.float32)
 		for i, p in enumerate(batchIndices):
 			f = dataset[0, p : p + inCount]
 			x[i,:] = f - (f.max() + f.min()) * 0.5
@@ -1863,7 +1862,7 @@ class OpenDiv4N6L1B2L1(chainer.Chain):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
 		batchSize = batchIndices.shape[0]
 		inCount = m.inCount
-		data = np.zeros(shape=(rnnLen, batchSize, inCount), dtype=np.float32)
+		data = np.empty(shape=(rnnLen, batchSize, inCount), dtype=np.float32)
 		for i in range(rnnLen):
 			ofs = i * rnnStep
 			for bi in range(batchSize):
@@ -1877,7 +1876,7 @@ class OpenDiv4N6L1B2L1(chainer.Chain):
 
 	def allocFrame(m):
 		"""１回の処理で使用するバッファ確保"""
-		return np.zeros(shape=(1, m.inCount), dtype=np.float32)
+		return np.empty(shape=(1, m.inCount), dtype=np.float32)
 
 	def copySeqDataToFrame(m, seq, index, frame):
 		"""buildSeqData() で確保したデータの指定位置から allocFrame() で確保した領域へコピーする"""
@@ -2018,7 +2017,7 @@ class OpenDiv4N5L1N1B2L1N1(chainer.Chain):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
 		batchSize = batchIndices.shape[0]
 		inCount = m.inCount
-		data = np.zeros(shape=(rnnLen, batchSize, inCount), dtype=np.float32)
+		data = np.empty(shape=(rnnLen, batchSize, inCount), dtype=np.float32)
 		for i in range(rnnLen):
 			ofs = i * rnnStep
 			for bi in range(batchSize):
@@ -2032,7 +2031,7 @@ class OpenDiv4N5L1N1B2L1N1(chainer.Chain):
 
 	def allocFrame(m):
 		"""１回の処理で使用するバッファ確保"""
-		return np.zeros(shape=(1, m.inCount), dtype=np.float32)
+		return np.empty(shape=(1, m.inCount), dtype=np.float32)
 
 	def copySeqDataToFrame(m, seq, index, frame):
 		"""buildSeqData() で確保したデータの指定位置から allocFrame() で確保した領域へコピーする"""

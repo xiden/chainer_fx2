@@ -181,16 +181,18 @@ def trainGetT(dataset, i):
 	return (p - last) * encodedValueToPips
 
 #@jit(nopython=True)
-def trainBatch(dataset, itr):
+def trainBatch(trainDataset, itr):
 	"""ミニバッチで学習する"""
 
+
+
 	# 全ミニバッチ分のメモリ領域確保して学習＆教師データ取得
-	xa_cpu = s.dnn.model.buildMiniBatchData(dataset, s.batchStartIndices, rnnLen, rnnStep)
+	xa_cpu = s.dnn.model.buildMiniBatchData(trainDataset, s.batchStartIndices, rnnLen, rnnStep)
 	ta_cpu = np.zeros(shape=(rnnLen, s.batchSize, s.dnnOut), dtype=np.float32)
 	for i in range(rnnLen):
 		offset = i * rnnStep
 		for bi in range(s.batchSize):
-			ta_cpu[i,bi,:] = trainGetT(dataset, s.batchStartIndices[bi] + offset)
+			ta_cpu[i,bi,:] = trainGetT(trainDataset, s.batchStartIndices[bi] + offset)
 	if s.xp == np:
 		xa_gpu = xa_cpu
 		ta_gpu = ta_cpu
@@ -212,7 +214,7 @@ def trainBatch(dataset, itr):
 		# 評価処理
 		if (i == 0 and itr % s.evalInterval == 0) or s.forceEval:
 			print('evaluate')
-			perp = trainEvaluate(dataset, s.evalIndex)
+			perp = trainEvaluate(trainDataset, s.evalIndex)
 			print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
 
 	return accumLoss
@@ -290,7 +292,7 @@ def testhr():
 	print('Hit rate test mode')
 
 	# 学習データ読み込み
-	dataset = f.loadDataset()
+	dataset = f.loadTrainDataset()
 
 	## モデルに影響を与えないようにコピーする
 	#evaluator = s.dnn.model.copy()  # to use different state
@@ -398,13 +400,13 @@ def testhr():
 
 			print("{0}: {1:.2f}%, {2:.2f}%, {3:.2f}%, rms err {4:.2f}".format(i, 100.0 * hitcount / i, 100.0 * hitnzcount / i, 100.0 * sdcount / i, math.sqrt(distance / i)))
 
-			if testLen <= i:
-				# 最終データ完了後なら
-				# xvals の平均値にt、yが近づくよう調整してCSVファイルに吐き出す
-				xvalsAverage = np.average(xvals)
-				tvals += xvalsAverage
-				yvals += xvalsAverage
-				f.writeTestHrGraphCsv(xvals, tvals, yvals)
+			#if testLen <= i:
+			#	# 最終データ完了後なら
+			#	# xvals の平均値にt、yが近づくよう調整してCSVファイルに吐き出す
+			#	xvalsAverage = np.average(xvals)
+			#	tvals += xvalsAverage
+			#	yvals += xvalsAverage
+			#	f.writeTestHrGraphCsv(xvals, tvals, yvals)
 
 			if s.grEnable and (loop % 5000 == 0 or testLen <= i):
 				glTeach.set_ydata(tvals)

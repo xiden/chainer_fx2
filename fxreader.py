@@ -42,7 +42,7 @@ def readDataset(filename, inMA, noise):
 			ddelta1 = delta1 / 100.0
 			delta2 = math.pi / 70.0
 			ddelta2 = delta2 / 70.0
-			for i in range(3000):
+			for i in range(30000):
 				t = 110.0 + math.sin(i * delta1) * math.cos(i * delta2) * 0.1
 				data[0].append(t + random.uniform(-noise, noise))
 				data[1].append(t + random.uniform(-noise, noise))

@@ -188,7 +188,8 @@ resultRootDir = "Results" # プロジェクト結果保存用ルートディレ�
 resultConfigDir = path.join(resultRootDir, path.splitext(path.basename(configFileName))[0]) # 設定ファイル別の結果保存ディレクトリ名
 resultTestDir = None # 試験設定別結果保存ディレクトリ名
 resultHrDir = None # 的中率結果保存ディレクトリ名
-sharedDataset = None # アプリ全体で共有する学習用データセット
+sharedTrainDataset = None # アプリ全体で共有する学習用データセット
+sharedTeachDataset = None # アプリ全体で共有する教師データセット
 
 # 指定されているモードで実行する内容を取得
 # この変数見て初期化処理を絞る

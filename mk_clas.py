@@ -68,9 +68,41 @@ def readDataset(filename, inMA, noise):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
-		Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
+	Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
 	"""
 	return fxreader.readDataset(filename, inMA, noise)
+
+def makeTeachDataset(trainDataset):
+	"""
+	指定された学習用データセットから教師データセットを作成する.
+	Args:
+		trainDataset: 学習用データセット.
+	Returns: 教師データセット.
+	"""
+	n = trainDataset.shape[1] - s.minEvalLen + 1
+	dataset = np.empty(n, dtype=np.int32)
+
+	for i in range(n):
+		frameEnd = i + s.frameSize
+
+		# 教師値取得
+		# 既知の終値と未来の分足データの開始値との差を教師とする
+		last = trainDataset[3, frameEnd - 1]
+		predData = trainDataset[0, frameEnd : frameEnd + s.predLen]
+		if s.predAve:
+			p = (predData * s.predMeanK).sum()
+		else:
+			p = predData[-1, 0]
+		d = p - last
+		t = int(round(100.0 * d * clsNum / clsSpan, 0))
+		if t < -clsNum:
+			t = -clsNum
+		elif clsNum < t:
+			t = clsNum
+		t += clsNum
+		dataset[i] = t
+
+	return dataset
 
 def init(iniFileName):
 	"""クラス分類用の初期化を行う"""
@@ -174,29 +206,6 @@ def getTestFileName(testFileName):
 	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan) + datasetExtract
 
 #@jit
-def trainGetT(dataset, i):
-	"""教師データ取得"""
-	frameEnd = i + s.frameSize
-
-	# 教師値取得
-	# 既知の終値と未来の分足データの開始値との差を教師とする
-	last = dataset[3, frameEnd - 1]
-	predData = dataset[0, frameEnd : frameEnd + s.predLen]
-	if s.predAve:
-		p = (predData * s.predMeanK).sum()
-	else:
-		p = predData[-1, 0]
-	d = p - last
-	t = int(round(100.0 * d * clsNum / clsSpan, 0))
-	if t < -clsNum:
-		t = -clsNum
-	elif clsNum < t:
-		t = clsNum
-	t += clsNum
-
-	return t
-
-#@jit
 def trainGetXBatchs(model, dataset, batchIndices, toGpu=True):
 	"""学習データと教師データをミニバッチで取得"""
 	x = model.buildMiniBatchData(dataset, batchIndices)
@@ -205,18 +214,18 @@ def trainGetXBatchs(model, dataset, batchIndices, toGpu=True):
 #@jit
 def trainGetTBatchs(dataset, batchIndices, toGpu=True):
 	"""学習データと教師データをミニバッチで取得"""
-	t = np.zeros(shape=batchIndices.shape, dtype=np.int32)
+	t = np.empty(shape=batchIndices.shape, dtype=np.int32)
 	for i, p in enumerate(batchIndices):
-		t[i] = trainGetT(dataset, p)
+		t[i] = dataset[p]
 	return s.toGpu(t) if toGpu else t
 
 #@jit
-def trainBatch(dataset, itr):
+def trainBatch(trainDataset, teachDataset, itr):
 	"""ミニバッチで学習する"""
 
 	# 学習実行
-	x = trainGetXBatchs(s.dnn.model, dataset, s.batchStartIndices)
-	t = trainGetTBatchs(dataset, s.batchStartIndices)
+	x = trainGetXBatchs(s.dnn.model, trainDataset, s.batchStartIndices)
+	t = trainGetTBatchs(teachDataset, s.batchStartIndices)
 	y, loss = s.dnn.evaluate(x, t)
 
 	# ユーザー入力による流れ制御
@@ -226,7 +235,7 @@ def trainBatch(dataset, itr):
 	# 評価処理
 	if (itr % s.evalInterval == 0) or s.forceEval:
 		print('evaluate')
-		perp = trainEvaluate(dataset, s.evalIndex)
+		perp = trainEvaluate(trainDataset, teachDataset, s.evalIndex)
 		print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
 		#if 1 <= itr and s.optm == "Adam":
 		#	print('learning rate =', s.dnn.optimizer.lr)
@@ -234,7 +243,7 @@ def trainBatch(dataset, itr):
 	return loss
 
 #@jit
-def trainEvaluate(dataset, index):
+def trainEvaluate(trainDataset, teachDataset, index):
 	"""現在のニューラルネットワーク評価処理"""
 
 	# モデルに影響を与えないようにコピーする
@@ -245,8 +254,8 @@ def trainEvaluate(dataset, index):
 
 	# 学習データ取得
 	batchIndices = np.asarray([index])
-	x = trainGetXBatchs(model, dataset, batchIndices)
-	t = trainGetTBatchs(dataset, batchIndices)
+	x = trainGetXBatchs(model, trainDataset, batchIndices)
+	t = trainGetTBatchs(teachDataset, batchIndices)
 
 	# ニューラルネットを通す
 	y, loss = evdnn.evaluate(x, t, chainer.flag.ON)
@@ -255,7 +264,7 @@ def trainEvaluate(dataset, index):
 	if s.grEnable:
 		# グラフにデータを描画する
 		plt.title(s.trainDataFile + " : " + str(index)) # グラフタイトル
-		xvals = dataset[:, index : index + s.minEvalLen]
+		xvals = trainDataset[:, index : index + s.minEvalLen]
 		tx = int(t[0])
 		ox = y.data.argmax(1)[0]
 		if s.xp is np:
@@ -288,7 +297,9 @@ def testhr():
 	print('Hit rate test mode')
 
 	# 学習データ読み込み
-	dataset = f.loadDataset()
+	trainDataset = f.loadTrainDataset()
+	# 教師データ作成
+	teachDataset = f.makeTeachDataset(trainDataset)
 
 	## モデルに影響を与えないようにコピーする
 	#evaluator = s.dnn.model.copy()  # to use different state
@@ -300,13 +311,13 @@ def testhr():
 	model.reset_state()  # initialize state
 	model.train = False  # dropout does nothing
 
-	testLen = dataset.shape[1] - s.minEvalLen
+	testLen = trainDataset.shape[1] - s.minEvalLen
 	hitcount = 0 # 教師と出力が一致した回数
 	hitnzcount = 0 # 教師と出力が0以外の時に一致した回数
 	sdcount = 0 # 教師と出力が同じ極性だった回数
 	distance = 0.0 # 教師値との差
 
-	xvals = dataset
+	xvals = trainDataset
 	tvals = np.zeros(testLen, dtype=np.int32)
 	yvals = np.zeros(testLen, dtype=np.int32)
 	evals = np.zeros(testLen, dtype=np.int32)
@@ -346,8 +357,8 @@ def testhr():
 		if s.batchSize < n:
 			n = s.batchSize
 		batchIndices = np.arange(i, i + n, 1)
-		x = trainGetXBatchs(model, dataset, batchIndices)
-		t = trainGetTBatchs(dataset, batchIndices, False)
+		x = trainGetXBatchs(model, trainDataset, batchIndices)
+		t = trainGetTBatchs(teachDataset, batchIndices, False)
 		# ニューラルネットを通す
 		y = model(x, chainer.flag.ON)
 		y = s.toCpu(y.data) # 最大値検索処理はCPUのが早い？
@@ -374,18 +385,18 @@ def testhr():
 			# 指定間隔または最終データ完了後に
 			# グラフにデータを描画する
 
-			if testLen <= i:
-				# 最終データ完了後なら
-				# xvals の平均値にt、yが近づくよう調整してCSVファイルに吐き出す
-				xvalsAverage = np.average(xvals)
-				scale = clsSpan / (clsNum * 100.0)
-				tvals = tvals * scale
-				yvals = yvals * scale
-				evals = evals * scale
-				tvals += xvalsAverage
-				yvals += xvalsAverage
-				evals += xvalsAverage
-				f.writeTestHrGraphCsv(xvals, tvals, yvals)
+			#if testLen <= i:
+			#	# 最終データ完了後なら
+			#	# xvals の平均値にt、yが近づくよう調整してCSVファイルに吐き出す
+			#	xvalsAverage = np.average(xvals)
+			#	scale = clsSpan / (clsNum * 100.0)
+			#	tvals = tvals * scale
+			#	yvals = yvals * scale
+			#	evals = evals * scale
+			#	tvals += xvalsAverage
+			#	yvals += xvalsAverage
+			#	evals += xvalsAverage
+			#	f.writeTestHrGraphCsv(xvals, tvals, yvals)
 
 			if s.grEnable:
 				glTeach.set_ydata(tvals)

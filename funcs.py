@@ -20,11 +20,32 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 import share as s
 
 
-def trainInit(dataset):
+def loadTrainDataset():
+	"""学習用データセットを読み込む"""
+
+	if s.sharedTrainDataset is None:
+		print("Loading data from  " + s.trainDataFile)
+		s.sharedTrainDataset = dataset = s.mk.readDataset(s.trainDataFile, s.inMA, s.datasetNoise)
+		print("    length = {}".format(dataset.shape[1]))
+	else:
+		dataset = s.sharedTrainDataset
+	return dataset
+
+def makeTeachDataset(trainDataset):
+	"""学習用データセットから教師データセットを作成する"""
+
+	if s.sharedTeachDataset is None:
+		print("Making teach dataset")
+		s.sharedTeachDataset = dataset = s.mk.makeTeachDataset(trainDataset)
+	else:
+		dataset = s.sharedTeachDataset
+	return dataset
+
+def trainInit(trainDataset):
 	"""指定された長さの学習データで学習に必要な変数を初期化する"""
 
 	s.batchRangeStart = 0
-	s.batchRangeEnd = dataset.shape[1] - s.minEvalLen
+	s.batchRangeEnd = trainDataset.shape[1] - s.minEvalLen
 	if s.batchRangeEnd < 0:
 		print("Data length not enough")
 		sys.exit()
@@ -39,18 +60,6 @@ def trainInit(dataset):
 	s.requestQuit = False
 	s.quitNow = False
 	s.forceEval = False
-
-def loadDataset():
-	"""学習用データセットを読み込む"""
-
-	if s.sharedDataset is None:
-		print("Loading data from  " + s.trainDataFile)
-		s.sharedDataset = dataset = s.mk.readDataset(s.trainDataFile, s.inMA, s.datasetNoise)
-		print("    length = {}".format(dataset.shape[1]))
-	else:
-		dataset = s.sharedDataset
-	return dataset
-
 
 def serverTrainInit(wholeLen):
 	"""サーバー用に指定された長さの学習データで学習に必要な変数を初期化する"""
@@ -239,10 +248,12 @@ def train():
 		return
 
 	# 学習データ読み込み
-	dataset = loadDataset()
+	trainDataset = loadTrainDataset()
+	# 教師データ作成
+	teachDataset = makeTeachDataset(trainDataset)
 
 	# 学習ループ関係変数初期化
-	trainInit(dataset)
+	trainInit(trainDataset)
 	itrStart = s.batchOffsetInitial * s.curEpoch
 	itrEnd = s.batchOffsetInitial * s.epoch
 	itrCount = itrEnd - itrStart
@@ -264,7 +275,7 @@ def train():
 			s.batchStartIndices += s.batchOffset
 
 		# バッチ学習
-		accumLoss = s.mk.trainBatch(dataset, itr)
+		accumLoss = s.mk.trainBatch(trainDataset, teachDataset, itr)
 
 		# ニューラルネットワーク更新
 		if not s.quitNow:
