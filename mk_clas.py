@@ -214,9 +214,7 @@ def trainGetXBatchs(model, dataset, batchIndices, toGpu=True):
 #@jit
 def trainGetTBatchs(dataset, batchIndices, toGpu=True):
 	"""学習データと教師データをミニバッチで取得"""
-	t = np.empty(shape=batchIndices.shape, dtype=np.int32)
-	for i, p in enumerate(batchIndices):
-		t[i] = dataset[p]
+	t = np.take(dataset, batchIndices)
 	return s.toGpu(t) if toGpu else t
 
 #@jit
