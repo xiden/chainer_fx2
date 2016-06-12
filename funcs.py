@@ -340,13 +340,14 @@ def plotw():
 	model = s.dnn.model
 	links = []
 	for l in model.links(skipself=True):
-		links.append(l)
+		if "W" in l.__dict__:
+			links.append(l)
 
 	# 重みを画像として表示する
 	if s.grEnable:
 		links = sorted(links, key=lambda x: x.name)
 		n = len(links)
-		nh = int(math.sqrt(n / (1920 / 1080)))
+		nh = int(math.ceil(math.sqrt(n / (1920 / 1080))))
 		nw = int(math.ceil(n / nh))
 		nn = nh * nw
 

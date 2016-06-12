@@ -377,9 +377,9 @@ def testhr():
 		sdcount += np.greater(tyval, 0).sum()
 		distance += float((diff ** 2).sum())
 
-		print("{0}: {1:.2f}%, {2:.2f}%, {3:.2f}%, rms err {4:.2f}".format(i, 100.0 * hitcount / i, 100.0 * hitnzcount / i, 100.0 * sdcount / i, math.sqrt(distance / i)))
-
 		if loop % 100 == 0 or testLen <= i:
+			print("{0}: {1:.2f}%, {2:.2f}%, {3:.2f}%, rms err {4:.2f}".format(i, 100.0 * hitcount / i, 100.0 * hitnzcount / i, 100.0 * sdcount / i, math.sqrt(distance / i)))
+
 			# 指定間隔または最終データ完了後に
 			# グラフにデータを描画する
 

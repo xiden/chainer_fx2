@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>clas5.ini -t100 -g1</CommandLineArguments>
+    <CommandLineArguments>clas6.ini -t100 -g1</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -63,6 +63,8 @@
   <ItemGroup>
     <Content Include="Configs\4月Sq.ini" />
     <Content Include="Configs\4月.ini" />
+    <Content Include="Configs\clas6.ini" />
+    <Content Include="Configs\clas5.ini" />
     <Content Include="Configs\clas4.ini" />
     <Content Include="Configs\clas3.ini" />
     <Content Include="Configs\clas2.ini" />
