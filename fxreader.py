@@ -7,10 +7,16 @@ import numpy as np
 import share as s
 
 def readDataset(filename, inMA, noise):
-	"""指定された分足為替CSVからロウソク足データを作成する
+	"""
+	指定された分足為替CSVからロウソク足データを作成する
+
 	Args:
 		filename: 読み込むCSVファイル名.
-		Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
+		inMA: 移動平均サイズ.
+		noise: 加えるノイズ量.
+
+	Returns:
+		開始値配列、高値配列、低値配列、終値配列の2次元データ.
 	"""
 	filename = path.join("Datasets", filename)
 	print(filename)
