@@ -240,7 +240,7 @@ def trainFlowControl():
 def train():
 	"""学習モード処理"""
 
-	print('Train mode')
+	print('Train mode', s.netType)
 
 	# すでに目標エポック到達しているなら終了
 	if s.epoch <= s.curEpoch:

@@ -310,6 +310,7 @@ def testhr():
 	model.train = False  # dropout does nothing
 
 	testLen = trainDataset.shape[1] - s.minEvalLen
+	ynzcount = 0 # 出力が0以外だった回数
 	hitcount = 0 # 教師と出力が一致した回数
 	hitnzcount = 0 # 教師と出力が0以外の時に一致した回数
 	sdcount = 0 # 教師と出力が同じ極性だった回数
@@ -371,14 +372,22 @@ def testhr():
 		# 的中率更新
 		i += n
 		eqs = np.equal(tval, yval)
-		nzs = eqs * np.not_equal(yval, 0)
+		ynzs = np.not_equal(yval, 0)
+		nzs = eqs * ynzs
+		ynzcount += ynzs.sum()
 		hitcount += eqs.sum()
 		hitnzcount += nzs.sum()
 		sdcount += np.greater(tyval, 0).sum()
 		distance += float((diff ** 2).sum())
 
 		if loop % 100 == 0 or testLen <= i:
-			print("{0}: {1:.2f}%, {2:.2f}%, {3:.2f}%, rms err {4:.2f}".format(i, 100.0 * hitcount / i, 100.0 * hitnzcount / i, 100.0 * sdcount / i, math.sqrt(distance / i)))
+			print(
+				"{0}: {1:.2f}%, {2:.2f}%, {3:.2f}%, rms err {4:.2f}".format(
+					i,
+					100.0 * hitcount / i,
+					100.0 * hitnzcount / ynzcount if ynzcount != 0 else 0.0,
+					100.0 * sdcount / ynzcount if ynzcount != 0 else 0.0,
+					math.sqrt(distance / i)))
 
 			# 指定間隔または最終データ完了後に
 			# グラフにデータを描画する
@@ -407,8 +416,8 @@ def testhr():
 		loop += 1
 
 	hitRate = 100.0 * hitcount / testLen
-	nzhitRate = 100.0 * hitnzcount / testLen
-	sdRate = 100.0 * sdcount / testLen
+	nzhitRate = 100.0 * hitnzcount / ynzcount if ynzcount != 0 else 0.0
+	sdRate = 100.0 * sdcount / ynzcount if ynzcount != 0 else 0.0
 	distance = math.sqrt(distance / testLen)
 	print("{0:.2f}%, {1:.2f}%, {2:.2f}%, rms err {3:.2f}".format(hitRate, nzhitRate, sdRate, distance))
 
