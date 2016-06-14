@@ -19,10 +19,83 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import share as s
 
+def calcGraphLayout(n):
+	"""
+	指定数のグラフを表示するのに丁度いい縦横グラフ数の取得.
+	"""
+	nh = int(math.ceil(math.sqrt(n / (1920 / 1080))))
+	nw = int(math.ceil(n / nh))
+	return nh, nw
+
+def getEpochDir(epoch):
+	"""
+	指定エポック番号の保存用ディレクトリ名取得.
+	"""
+	return path.join(s.resultTestDir, "e" + str(epoch))
+
+def mkEpochDir(epoch):
+	"""
+	指定エポック番号の保存用ディレクトリ作成.
+	"""
+	epochDir = getEpochDir(epoch)
+	if not path.isdir(epochDir):
+		os.mkdir(epochDir)
+	return epochDir
+
+def getTestHrGraphFileBase():
+	"""
+	的中率計測結果グラフファイル名のベース名
+	"""
+	return "g_" + s.trainDataFile + "_"
+
+def getTestHrStatFileBase():
+	"""
+	的中率計測結果統計値ファイル名のベース名
+	"""
+	return "a_" + s.trainDataFile
+
+def getEpochs():
+	"""
+	保存データが存在するエポックの番号リストを取得.
+	"""
+	# 保存してあるエポックディレクトリ取得
+	p = Path(s.resultTestDir)
+	pls = list(p.glob("e[0-9]*"))
+	epochs = []
+	for pl in pls:
+		name = pl.name
+		if path.isdir(path.join(s.resultTestDir, name)):
+			epochs.append(int(name[1:]))
+	epochs.sort()
+	return epochs
+
+def loadWeights(dir1, dir2=None, lname=None):
+	"""
+	重みデータを読み込む.
+
+	Args:
+		dir1: エポックの重み保存ディレクトリその１.
+		dir2: エポックの重み保存ディレクトリその２、省略可能.
+		lname: 特定のレイヤ重みのみ読み込みたい場合にレイヤ名を指定する.
+
+	Returns:
+		(レイヤ名, 重み1, 重み2)タプルリスト.
+	"""
+	weights = []
+	p = Path(dir1)
+	pls = list(p.glob("*.w.npy" if lname is None else lname + ".w.npy"))
+	for pl in pls:
+		name = pl.name
+		a1 = np.load(path.join(dir1, name))
+		a2 = None if dir2 is None else np.load(path.join(dir2, name))
+		weights.append((name[:-6], a1, a2))
+	weights.sort(key=lambda k: k[0])
+	return weights
 
 def loadTrainDataset():
-	"""学習用データセットを読み込む"""
-
+	"""
+	学習用データセットを読み込む
+	"""
 	if s.sharedTrainDataset is None:
 		print("Loading data from  " + s.trainDataFile)
 		s.sharedTrainDataset = dataset = s.mk.readDataset(s.trainDataFile, s.inMA, s.datasetNoise)
@@ -31,9 +104,87 @@ def loadTrainDataset():
 		dataset = s.sharedTrainDataset
 	return dataset
 
-def makeTeachDataset(trainDataset):
-	"""学習用データセットから教師データセットを作成する"""
+def makeWeightFig(e1, e2=None, lname=None, epochs=None, lastFigAxesIms=None):
+	"""
+	重みグラフを作成する.
 
+	Args:
+		e1: エポック１のインデックス.
+		e2: エポック２のインデックスを指定するとエポック１との差分が表示される.
+		lname: 特定のレイヤのみ表示したい場合にレイヤ名を指定する.
+		epochs: 既にエポック番号リスト取得済みの場合に指定する.
+		lastFigAxesIms: 前回作った (fig, axes, ims) を再利用する場合に指定する.
+
+	Returns:
+		(fig, axes, ims) のタプル
+	"""
+
+	# 保存してあるエポックディレクトリ取得
+	if epochs is None:
+		epochs = getEpochs()
+
+	# 重みデータリスト読み込み
+	dir1 = getEpochDir(epochs[e1])
+	dir2 = None if e2 is None else getEpochDir(epochs[e2])
+	weights = loadWeights(dir1, dir2, lname)
+
+	# グラフ作成
+	n = len(weights)
+	nh, nw = calcGraphLayout(n)
+	nn = nh * nw
+	if lastFigAxesIms is None:
+		fig, axes = plt.subplots(nh, nw, figsize=(16, 9), dpi=110, facecolor='w', edgecolor='k')
+		fig.subplots_adjust(top=0.97, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.15)
+		ims = []
+		if e2 is None:
+			fig.canvas.set_window_title("Epoch {0}".format(epochs[e1]))
+		else:
+			fig.canvas.set_window_title("Epoch {0} - {1}".format(epochs[e1], epochs[e2]))
+	else:
+		fig = lastFigAxesIms[0]
+		axes = lastFigAxesIms[1]
+		ims = lastFigAxesIms[2]
+
+	for i in range(nn):
+		ax = axes if n == 1 else axes[i // nw, i % nw]
+		if i < n:
+			w = weights[i]
+
+			ax.set_title(w[0])
+
+			w1 = w[1]
+			w2 = w[2]
+			if len(w1.shape) != 2:
+				w1 = w1[0]
+				if w2 is not None:
+					w2 = w2[0]
+
+			data = w1 if w2 is None else w1 - w2
+
+			if len(ims) <= i:
+				im = ax.imshow(data, interpolation="nearest")
+				im.autoscale()
+				ims.append(im)
+				ax.xaxis.set_visible(False)
+				ax.yaxis.set_visible(False)
+				ax.axis("image")
+				if n == 1:
+					divider = make_axes_locatable(ax)
+					cax = divider.append_axes("right", size="5%", pad=0.05)
+					cbar = plt.colorbar(im, cax=cax)
+			else:
+				im = ims[i]
+				im.set_data(data)
+				im.autoscale()
+		else:
+			ax.set_axis_off()
+
+	return (fig, axes, ims)
+
+def makeTeachDataset(trainDataset):
+	"""
+	学習用データセットから教師データセットを作成する
+	"""
 	if s.sharedTeachDataset is None:
 		print("Making teach dataset")
 		s.sharedTeachDataset = dataset = s.mk.makeTeachDataset(trainDataset)
@@ -42,8 +193,9 @@ def makeTeachDataset(trainDataset):
 	return dataset
 
 def trainInit(trainDataset):
-	"""指定された長さの学習データで学習に必要な変数を初期化する"""
-
+	"""
+	指定された長さの学習データで学習に必要な変数を初期化する
+	"""
 	s.batchRangeStart = 0
 	s.batchRangeEnd = trainDataset.shape[1] - s.minEvalLen
 	if s.batchRangeEnd < 0:
@@ -62,8 +214,9 @@ def trainInit(trainDataset):
 	s.forceEval = False
 
 def serverTrainInit(wholeLen):
-	"""サーバー用に指定された長さの学習データで学習に必要な変数を初期化する"""
-
+	"""
+	サーバー用に指定された長さの学習データで学習に必要な変数を初期化する
+	"""
 	s.batchRangeEnd = wholeLen - s.minEvalLen
 	s.batchIndices = [0] * s.batchSize
 	for i in range(s.batchSize):
@@ -72,7 +225,9 @@ def serverTrainInit(wholeLen):
 	s.batchOffset = s.batchOffsetInitial
 
 def snapShotPredictionModel():
-	"""学習中のモデルからドル円未来予測用のモデルを作成する"""
+	"""
+	学習中のモデルからドル円未来予測用のモデルを作成する
+	"""
 	e = s.dnn.model.copy()  # to use different state
 	e.reset_state()  # initialize state
 	e.train = False  # dropout does nothing
@@ -80,7 +235,9 @@ def snapShotPredictionModel():
 
 #@jit
 def npMaxMin(arrays):
-	"""指定された複数の配列の最大最小を取得する"""
+	"""
+	指定された複数の配列の最大最小を取得する
+	"""
 	rmax = float(arrays[0].max())
 	rmin = float(arrays[0].min())
 	for i in range(1, len(arrays)):
@@ -90,17 +247,10 @@ def npMaxMin(arrays):
 		if tmin < rmin: rmin = tmin
 	return rmin, rmax
 
-
-def getTestHrGraphFileBase():
-	"""的中率計測結果グラフファイル名のベース名"""
-	return "g_" + s.trainDataFile + "_"
-
-def getTestHrStatFileBase():
-	"""的中率計測結果統計値ファイル名のベース名"""
-	return "a_" + s.trainDataFile
-
 def writeTestHrGraphCsv(xvals, tvals, yvals):
-	"""テスト結果CSVファイルに書き込む"""
+	"""
+	テスト結果CSVファイルに書き込む
+	"""
 	fname = path.join(s.resultHrDir, getTestHrGraphFileBase() + str(s.curEpoch) + ".csv")
 	with codecs.open(fname, 'w', "shift_jis") as file:
 		writer = csv.writer(file)
@@ -108,7 +258,9 @@ def writeTestHrGraphCsv(xvals, tvals, yvals):
 			writer.writerow([xvals[0][i], xvals[1][i], xvals[2][i], xvals[3][i], tvals[i], yvals[i]])
 
 def writeTestHrStatCsv(epoch, hitRate, nonZeroHitRate, sameDirRate, distance):
-	"""的中率統計CSVファイルへ書き込む.
+	"""
+	的中率統計CSVファイルへ書き込む.
+
 	Args:
 		epoch: エポック数.
 		hitrate: 的中率%.
@@ -122,7 +274,9 @@ def writeTestHrStatCsv(epoch, hitRate, nonZeroHitRate, sameDirRate, distance):
 		writer.writerow([epoch, hitRate, nonZeroHitRate, sameDirRate, distance])
 
 def readTestHrCsv(filename):
-	"""指定された的中率テスト結果CSVを読み込む
+	"""
+	指定された的中率テスト結果CSVを読み込む
+
 	Args:
 		filename: 読み込むCSVファイル名.
 	"""
@@ -142,7 +296,9 @@ def readTestHrCsv(filename):
 	return np.asarray(xdata, dtype=np.float32), np.asarray(tdata, dtype=np.float32), np.asarray(ydata, dtype=np.float32)
 
 def readTestHrGraphY(filename):
-	"""指定された的中率テスト結果CSV内の計算出力だけを読み込む
+	"""
+	指定された的中率テスト結果CSV内の計算出力だけを読み込む
+
 	Args:
 		filename: 読み込むCSVファイル名.
 	"""
@@ -195,7 +351,9 @@ def testhr_g():
 
 #@jit
 def trainFlowControl():
-	"""ユーザー入力による学習処理時の評価位置移動、終了要求などの共通制御処理"""
+	"""
+	ユーザー入力による学習処理時の評価位置移動、終了要求などの共通制御処理
+	"""
 	if s.grEnable:
 		# 評価範囲移動速度変更
 		if (win32api.GetAsyncKeyState(win32con.VK_NUMPAD1) & 0x8000) != 0:
@@ -238,7 +396,9 @@ def trainFlowControl():
 
 #@jit
 def train():
-	"""学習モード処理"""
+	"""
+	学習モード処理
+	"""
 
 	print('Train mode', s.netType)
 
@@ -320,15 +480,6 @@ def train():
 		shutil.copy(s.modelFile, epochDir)
 		shutil.copy(s.stateFile, epochDir)
 
-def getEpochDir(epoch):
-	return path.join(s.resultTestDir, "e" + str(epoch))
-
-def mkEpochDir(epoch):
-	epochDir = getEpochDir(epoch)
-	if not path.isdir(epochDir):
-		os.mkdir(epochDir)
-	return epochDir
-
 def plotw():
 	"""
 	モデルの重みを可視化＆ファイル保存
@@ -347,8 +498,7 @@ def plotw():
 	if s.grEnable:
 		links = sorted(links, key=lambda x: x.name)
 		n = len(links)
-		nh = int(math.ceil(math.sqrt(n / (1920 / 1080))))
-		nw = int(math.ceil(n / nh))
+		nh, nw = calcGraphLayout(n)
 		nn = nh * nw
 
 		fig, axes = plt.subplots(nh, nw)
@@ -377,73 +527,47 @@ def plotw():
 
 def wdiff():
 	"""
-	保存してある重みの差分を表示する
+	保存してある重みの差分を表示する.
 	"""
 
 	print('Weight diff mode')
-
-
-	# 保存してあるエポックディレクトリ取得
-	p = Path(s.resultTestDir)
-	pls = list(p.glob("e[0-9]*"))
-	epochs = []
-	for pl in pls:
-		name = pl.name
-		if path.isdir(path.join(s.resultTestDir, name)):
-			epochs.append(int(name[1:]))
-	epochs.sort()
 
 	# ２つのエポック保存ディレクトリ名取得
 	te = s.wdiff.split(",")
 	e1 = int(te[0])
 	e2 = int(te[1]) if te[1] != "n" else None
 	nf = te[2] if 3 <= len(te) else None
-	dir1 = getEpochDir(epochs[e1])
-	dir2 = None if e2 is None else getEpochDir(epochs[e2])
 
-	# 重みデータファイルを読み込んでいく
-	weights = []
-	p = Path(dir1)
-	pls = list(p.glob("*.w.npy" if nf is None else nf + ".w.npy"))
-	for pl in pls:
-		name = pl.name
-		a1 = np.load(path.join(dir1, name))
-		a2 = None if e2 is None else np.load(path.join(dir2, name))
-		weights.append((name[:-6], a1, a2))
-	weights.sort(key=lambda k: k[0])
-
-	# グラフ表示
-	n = len(weights)
-	nh = int(math.ceil(math.sqrt(n / (1920 / 1080))))
-	nw = int(math.ceil(n / nh))
-	nn = nh * nw
-
-	fig, axes = plt.subplots(nh, nw)
-	fig.subplots_adjust(top=0.97, bottom=0.0, left=0.0, right=1.0, wspace=0.0, hspace=0.15)
-	if e2 is None:
-		fig.canvas.set_window_title("Epoch {0}".format(epochs[e1]))
-	else:
-		fig.canvas.set_window_title("Epoch {0} - {1}".format(epochs[e1], epochs[e2]))
-
-	for i in range(nn):
-		ax = axes if n == 1 else axes[i // nw, i % nw]
-		if i < n:
-			w = weights[i]
-			ax.set_title(w[0])
-			w1 = w[1]
-			w2 = w[2]
-			if len(w1.shape) != 2:
-				w1 = w1[0]
-				if w2 is not None:
-					w2 = w2[0]
-			im = ax.imshow(w1 if e2 is None else w1 - w2, interpolation="nearest")
-			if n == 1:
-				divider = make_axes_locatable(ax)
-				cax = divider.append_axes("right", size="5%", pad=0.05)
-				cbar = plt.colorbar(im, cax=cax)
-			ax.xaxis.set_visible(False)
-			ax.yaxis.set_visible(False)
-			ax.axis("image")
-		else:
-			ax.set_axis_off()
+	# グラフ作成して表示
+	fig, axes, ims = makeWeightFig(e1, e2, nf)
 	plt.show()
+
+def wmov():
+	"""
+	保存してある重みを動画化する.
+	"""
+
+	print('Create weight movie mode')
+
+	# エポック一覧取得
+	epochs = getEpochs()
+
+	# 作業ディレクトリ作成
+	wdir = path.join(s.resultTestDir, 'movie_tmp')
+	if not path.isdir(wdir):
+		os.mkdir(wdir)
+
+	# 各エポックの重み画像を作業ディレクトリに保存していく
+	n = len(epochs)
+	ctx = None
+	for i in range(n):
+		print("epoch", epochs[i])
+		ctx = makeWeightFig(i, epochs=epochs, lastFigAxesIms=ctx)
+		ctx[0].savefig(path.join(wdir, "%05d.png" % (i)))
+
+	# mp4作成
+	print("Creating movie...")
+	os.system("ffmpeg.exe -y -r 10 -i " + wdir + "\\%05d.png -c:v libx264 -crf 10 -preset ultrafast -pix_fmt yuv420p -threads 0 -tune zerolatency -f mpegts " + path.join(s.resultTestDir, 'wmov.mp4'))
+
+	# 作業ディレクトリ削除
+	shutil.rmtree(wdir)

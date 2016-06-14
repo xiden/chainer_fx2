@@ -29,5 +29,8 @@ elif s.mode == "plotw":
 elif s.mode == "wdiff":
 	# ２つの重みの差分の可視化
 	f.wdiff()
+elif s.mode == "wmov":
+	# 重みの動画化
+	f.wmov()
 else:
 	print("Unknown mode " + s.mode)

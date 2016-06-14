@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>zigzag1.ini -t1000 -g1 -d0_1440_1440</CommandLineArguments>
+    <CommandLineArguments>zigzag2.ini -mwmov</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
