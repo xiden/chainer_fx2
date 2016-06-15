@@ -20,6 +20,10 @@ import funcs as f
 clsNum = 1 # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 zigzagTolerance = 0.02 # ジグザグ判定用許容誤差
 zigzagExpand = 5 # 教師データジグザグ位置前後にも同じ値を設定する範囲（片範囲数）
+zigzagMark = 0 # 学習データの高値と低値にジグザグをマーキングする
+zigzagTrain = 0 # 学習データにジグザグデータ行を追加する
+
+zigzagCache = None
 
 subPlot1 = None
 subPlot2 = None
@@ -119,7 +123,9 @@ def makeTeachDataFromZigzag(positions, values, length, minEvalLen, expand):
 	Args:
 		positions: ジグザグ位置インデックス.
 		values: ジグザグ位置の値.
-		length: 教師データ長.
+		length: 学習データ長.
+		minEvalLen: １回の学習に必要な最小データ数.
+		expand: ジグザグの値を前後に広げる数.
 
 	Returns:
 		教師データ.
@@ -136,6 +142,46 @@ def makeTeachDataFromZigzag(positions, values, length, minEvalLen, expand):
 				result[i] = t
 
 	return result
+
+@jit("void(i4[:], f4[:], f4[:,:])", nopython=True)
+def markZigzagToTrainData(positions, values, trainDataset):
+	"""
+	学習データにジグザグをマーキングする、山部分は高値を1円上げ、谷部分は低値を1円下げる.
+
+	Args:
+		positions: ジグザグ位置インデックス.
+		values: ジグザグ位置の値.
+		trainData: 学習データ.
+	"""
+	count = len(positions)
+
+	for i in range(1, count):
+		p = positions[i]
+		if values[i] < values[i - 1]:
+			trainDataset[2, p] -= 1
+		else:
+			trainDataset[1, p] += 1
+
+@jit("f4[:](i4[:], f4[:], i8)", nopython=True)
+def getZigzagTrainData(positions, values, length):
+	"""
+	学習データ追加するジグザグデータ行を取得する.
+
+	Args:
+		positions: ジグザグ位置インデックス.
+		values: ジグザグ位置の値.
+		length: 学習データ長.
+
+	Returns:
+		学習データに追加するジグザグデータ.
+	"""
+	count = len(positions)
+	zigzag = np.zeros(length, dtype=np.float32)
+
+	for i in range(1, count):
+		zigzag[positions[i]] = 1 if values[i] < values[i - 1] else -1
+
+	return zigzag
 
 def addZigzagLine():
 	"""
@@ -157,7 +203,28 @@ def readDataset(filename, inMA, noise):
 	Returns:
 		開始値配列、高値配列、低値配列、終値配列の2次元データ.
 	"""
-	return fxreader.readDataset(filename, inMA, noise)
+	global zigzagCache
+	global gxZigzag
+	global gyZigzag
+
+	trainDataset = fxreader.readDataset(filename, inMA, noise)
+
+	# ジグザグ取得
+	if zigzagCache is None:
+		zigzagCache = makeZigzag(trainDataset, zigzagTolerance)
+
+	# グラフ描画用として保持しておく
+	if s.grEnable:
+		gxZigzag = zigzagCache[0]
+		gyZigzag = zigzagCache[1]
+
+	# 指定されていたら学習データにジグザグデータを追加する
+	if zigzagTrain:
+		zigzag = getZigzagTrainData(zigzagCache[0], zigzagCache[1], trainDataset.shape[1])
+		trainDataset = np.vstack((trainDataset, zigzag))
+
+	return trainDataset
+
 
 def makeTeachDataset(trainDataset):
 	"""
@@ -169,30 +236,26 @@ def makeTeachDataset(trainDataset):
 	Returns:
 		教師データセット.
 	"""
-	global gxZigzag
-	global gyZigzag
+	# 指定されていたら学習データにジグザグをマーキングする
+	if zigzagMark:
+		markZigzagToTrainData(zigzagCache[0], zigzagCache[1], trainDataset)
 
-	# ジグザグ取得
-	zigzag = makeZigzag(trainDataset, zigzagTolerance)
-
-	# グラフ描画用として保持しておく
-	if s.grEnable:
-		gxZigzag = zigzag[0]
-		gyZigzag = zigzag[1]
-
-	return makeTeachDataFromZigzag(zigzag[0], zigzag[1], trainDataset.shape[1], s.minEvalLen, zigzagExpand)
+	return makeTeachDataFromZigzag(zigzagCache[0], zigzagCache[1], trainDataset.shape[1], s.minEvalLen, zigzagExpand)
 
 def init(iniFileName):
 	"""クラス分類用の初期化を行う"""
 	global clsNum
 	global zigzagTolerance
 	global zigzagExpand
-
+	global zigzagMark
+	global zigzagTrain
 
 	configIni = ini.file(iniFileName, "ZIGZAG")
 	clsNum = configIni.getInt("clsNum", "1") # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 	zigzagTolerance = configIni.getFloat("zigzagTolerance", 0.02) # ジグザグ判定用許容誤差
 	zigzagExpand = configIni.getFloat("zigzagExpand", 5) # 教師データジグザグ位置前後にも同じ値を設定する範囲（片範囲数）
+	zigzagMark = configIni.getInt("zigzagMark", 0) # 学習データの高値と低値にジグザグをマーキングする
+	zigzagTrain = configIni.getInt("zigzagTrain", 0) # 学習データにジグザグデータ行を追加する
 
 	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
@@ -350,7 +413,7 @@ def trainEvaluate(trainDataset, teachDataset, index):
 		glOut.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
-		subPlot1.set_ylim(f.npMaxMin(xvals))
+		subPlot1.set_ylim(f.npMaxMin(xvals[0:4]))
 		subPlot2.set_ylim(f.npMaxMin([yvals]))
 		plt.draw()
 		plt.pause(0.001)

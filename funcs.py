@@ -3,6 +3,7 @@
 
 import sys
 import csv
+import re
 import codecs
 import shutil
 import os
@@ -525,6 +526,38 @@ def plotw():
 		np.save(path.join(epochDir, l.name + ".w"), l.W.data)
 		np.save(path.join(epochDir, l.name + ".b"), l.b.data)
 
+def isInteger(value):
+	"""
+	整数値かどうかの検証.
+	"""
+	return re.match(r'^(?![-+]0*$)[-+]?([1-9][0-9]*)?0?$', '%s'%value) and True or False
+
+def parseWeightOptions(o):
+	"""
+	重み表示関係のオプションを解析する.
+
+	Args:
+		o: オプション文字列.
+
+	Returns:
+		(エポックインデックス配列, レイヤ名配列, オプション配列) タプル
+	"""
+	fields = o.split(",")
+
+	epochs = []
+	lnames = []
+	options = []
+
+	for f in fields:
+		if isInteger(f):
+			epochs.append(int(f))
+		elif f.startswith(":"):
+			lnames.append(f[1:])
+		else:
+			options.append(f)
+
+	return (epochs, lnames, options)
+
 def wdiff():
 	"""
 	保存してある重みの差分を表示する.
@@ -532,14 +565,14 @@ def wdiff():
 
 	print('Weight diff mode')
 
-	# ２つのエポック保存ディレクトリ名取得
-	te = s.wdiff.split(",")
-	e1 = int(te[0])
-	e2 = int(te[1]) if te[1] != "n" else None
-	nf = te[2] if 3 <= len(te) else None
+	# 重み表示オプション取得
+	wo = parseWeightOptions(s.wdiff)
+	e1 = wo[0][0]
+	e2 = wo[0][1] if 2 <= len(wo[0]) else None
+	lname = wo[1][0] if len(wo[1]) != 0 else None
 
 	# グラフ作成して表示
-	fig, axes, ims = makeWeightFig(e1, e2, nf)
+	fig, axes, ims = makeWeightFig(e1, e2, lname)
 	plt.show()
 
 def wmov():
@@ -554,20 +587,36 @@ def wmov():
 
 	# 作業ディレクトリ作成
 	wdir = path.join(s.resultTestDir, 'movie_tmp')
-	if not path.isdir(wdir):
-		os.mkdir(wdir)
+	if path.isdir(wdir):
+		# 一旦削除
+		shutil.rmtree(wdir)
+	os.mkdir(wdir)
+
+	# 重み表示オプション取得
+	wo = parseWeightOptions(s.wmov)
+	lname = wo[1][0] if len(wo[1]) != 0 else None
+	diff = "diff" in wo[2]
 
 	# 各エポックの重み画像を作業ディレクトリに保存していく
 	n = len(epochs)
 	ctx = None
-	for i in range(n):
-		print("epoch", epochs[i])
-		ctx = makeWeightFig(i, epochs=epochs, lastFigAxesIms=ctx)
-		ctx[0].savefig(path.join(wdir, "%05d.png" % (i)))
+	if diff:
+		n -= 1
+		for i in range(n):
+			print("epoch", epochs[i + 1], "-", epochs[i])
+			ctx = makeWeightFig(i + 1, i, lname=lname, epochs=epochs, lastFigAxesIms=ctx)
+			ctx[0].savefig(path.join(wdir, "%05d.png" % (i)))
+	else:
+		for i in range(n):
+			print("epoch", epochs[i])
+			ctx = makeWeightFig(i, lname=lname, epochs=epochs, lastFigAxesIms=ctx)
+			ctx[0].savefig(path.join(wdir, "%05d.png" % (i)))
 
 	# mp4作成
 	print("Creating movie...")
-	os.system("ffmpeg.exe -y -r 10 -i " + wdir + "\\%05d.png -c:v libx264 -crf 10 -preset ultrafast -pix_fmt yuv420p -threads 0 -tune zerolatency -f mpegts " + path.join(s.resultTestDir, 'wmov.mp4'))
+	movfname = "all.mp4" if lname is None else lname + ".mp4"
+	os.system("ffmpeg.exe -y -r 10 -i " + wdir + "\\%05d.png -c:v libx264 -crf 10 -preset ultrafast -pix_fmt yuv420p -threads 0 -tune zerolatency -f mpegts " + path.join(s.resultTestDir, movfname))
 
 	# 作業ディレクトリ削除
-	shutil.rmtree(wdir)
+	if "keep" not in s.wmov.split(","):
+		shutil.rmtree(wdir)

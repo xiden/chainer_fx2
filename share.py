@@ -96,7 +96,8 @@ parser.add_argument('--dataset', '-d', default='', help='データセット選�
 parser.add_argument('--nettype', '-n', default='', help='ニューラルネットワークタイプ名、INIファイルも書き換わる')
 parser.add_argument('--backupEpoch', '-b', default='', help='学習完了時エポックデータをバックアップするかどうか、INIファイルも書き換わる')
 parser.add_argument('--datasetNoise', '-z', default='', help='データセットに加えるノイズ値範囲、INIファイルも書き換わる')
-parser.add_argument('--wdiff', '-w', default='', help='重み差分表示のエポック指定、-1,-2 の様な形式で指定、0なら最も古いエポック、-1なら最新エポック、-2なら１つ前のエポック、-1,none なら最新エポック内容をそのまま表示')
+parser.add_argument('--wdiff', '-w', default='', help='重み差分表示オプションをカンマ区切りで指定、整数(負数なら最新から数える)ならエポックインデックス、":"から始まるならレイヤ名')
+parser.add_argument('--wmov', '-v', default='', help='重み動画作成オプションをカンマ区切りで指定、keep: 作成した一時画像ファイルを残す、diff: 重み差分の動画を作成する、":"から始まるならレイヤ名')
 
 args = parser.parse_args()
 configFileName = path.join("Configs", args.iniFileName)
@@ -129,7 +130,8 @@ adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴ�
 serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
 backupEpoch = configIni.getInt("backupEpoch", "1") # 学習完了時エポックデータをバックアップするかどうか
 datasetNoise = configIni.getFloat("datasetNoise", "0.005") # 学習データセットに加えるノイズ値範囲
-wdiff = configIni.getStr("wdiff", "-1,n") # 重み差分表示のエポック指定、-1,-2 の様な形式で指定、0なら最も古いエポック、-1なら最新エポック、-2なら１つ前のエポック、-1,none なら最新エポック内容をそのまま表示
+wdiff = configIni.getStr("wdiff", "-1") # 重み差分表示オプションをカンマ区切りで指定、整数(負数なら最新から数える)ならエポックインデックス、":"から始まるならレイヤ名
+wmov = configIni.getStr("wmov", "") # 重み動画作成オプションをカンマ区切りで指定、keep: 作成した一時画像ファイルを残す、diff: 重み差分の動画を作成する、":"から始まるならレイヤ名
 
 # コマンドライン引数によるINI設定のオーバーライド
 if len(args.mode) != 0:
@@ -156,6 +158,9 @@ if len(args.datasetNoise) != 0:
 if len(args.wdiff) != 0:
 	wdiff = args.wdiff # 重み差分表示指定をオーバーライド
 	configIni.set("wdiff", wdiff)
+if len(args.wmov) != 0:
+	wmov = args.wmov # 重み動画作成指定をオーバーライド
+	configIni.set("wmov", wmov)
 
 # その他グローバル変数初期化
 inMA = (inMA // 2) * 2 + 1 # 入力値移動平均サイズを奇数にする

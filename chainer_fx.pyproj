@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>zigzag2.ini -mwmov</CommandLineArguments>
+    <CommandLineArguments>clas6.ini -t1000</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -94,6 +94,7 @@
     <Content Include="Configs\test2.ini" />
     <Content Include="Configs\rnn1.ini" />
     <Content Include="Configs\veryLarge.ini" />
+    <Content Include="Configs\zigzag2.ini" />
   </ItemGroup>
   <PropertyGroup>
     <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">10.0</VisualStudioVersion>

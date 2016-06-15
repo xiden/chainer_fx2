@@ -6,6 +6,29 @@ from numba import jit
 import mk_clas as c
 
 
+@jit("f4[:,:,:](i8, f4[:,:], i4[:])", nopython=True)
+def buildMiniBatchCloseHighLow(inCount, trainDataset, batchIndices):
+	"""
+	学習データセットの終値、高値、低値を使い指定位置から全ミニバッチデータを作成する.
+
+	Args:
+		inCount: ニューラルネットの入力次元数.
+		trainDataset: 学習データセット.
+		batchIndices: 各バッチの学習データセット開始インデックス番号.
+
+	Returns:
+		全バッチ分の学習データセット.
+	"""
+	batchSize = batchIndices.shape[0]
+	x = np.empty(shape=(3, batchSize, inCount), dtype=np.float32)
+	for i, p in enumerate(batchIndices):
+		pe = p + inCount
+		x[0,i,:] = trainDataset[3,p:pe]
+		x[1,i,:] = trainDataset[1,p:pe]
+		x[2,i,:] = trainDataset[2,p:pe]
+	return x
+
+
 class OpenHighLowN6N5(chainer.Chain):
 	"""
 	絞らず混ぜていくスタイル
@@ -362,6 +385,119 @@ class AllSqwzN6N5(chainer.Chain):
 		return "clas"
 
 
+class CloseHighLowN6N10(chainer.Chain):
+	"""
+	高値、低値、終値を使い絞って混ぜて広げていくスタイル
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = 8 * unitCount // 10
+		uc2 = 6 * unitCount // 10
+		uc3 = 4 * unitCount // 10
+		uc4 = 2 * unitCount // 10
+		uc5 = 1 * unitCount // 10
+		super().__init__(
+			nh01=L.Linear(inCount, uc1),
+			nl01=L.Linear(inCount, uc1),
+			nc01=L.Linear(inCount, uc1),
+
+			nh02=L.Linear(uc1, uc2),
+			nl02=L.Linear(uc1, uc2),
+			nc02=L.Linear(uc1, uc2),
+
+			nh03=L.Linear(uc2, uc3),
+			nl03=L.Linear(uc2, uc3),
+			nc03=L.Linear(uc2, uc3),
+
+			nh04=L.Linear(uc3, uc4),
+			nl04=L.Linear(uc3, uc4),
+			nc04=L.Linear(uc3, uc4),
+
+			nh05=L.Linear(uc4, uc5),
+			nl05=L.Linear(uc4, uc5),
+			nc05=L.Linear(uc4, uc5),
+
+			nh06=L.Linear(uc5, uc5),
+			nl06=L.Linear(uc5, uc5),
+			nc06=L.Linear(uc5, uc5),
+
+			nx07=L.Linear(uc5, uc5),
+			nx08=L.Linear(uc5, uc5),
+			nx09=L.Linear(uc5, uc5),
+			nx10=L.Linear(uc5, uc5),
+			nx11=L.Linear(uc5, uc5),
+			nx12=L.Linear(uc5, uc4),
+			nx13=L.Linear(uc4, uc3),
+			nx14=L.Linear(uc3, uc2),
+			nx15=L.Linear(uc2, uc1),
+			nx16=L.Linear(uc1, outCount)
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+
+		# 終値、高値、低値それぞれを絞る
+		h = F.relu(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.relu(m.nc02(h))
+		h = F.relu(m.nc03(h))
+		h = F.relu(m.nc04(h))
+		h = F.relu(m.nc05(h))
+		hc = F.relu(m.nc06(h))
+
+		h = F.relu(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.relu(m.nh02(h))
+		h = F.relu(m.nh03(h))
+		h = F.relu(m.nh04(h))
+		h = F.relu(m.nh05(h))
+		hh = F.relu(m.nh06(h))
+
+		h = F.relu(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.relu(m.nl02(h))
+		h = F.relu(m.nl03(h))
+		h = F.relu(m.nl04(h))
+		h = F.relu(m.nl05(h))
+		hl = F.relu(m.nl06(h))
+
+		# 混ぜる
+		h = hc + hh + hl
+
+		# いくつかレイヤを通す
+		h = F.relu(m.nx07(h))
+		h = F.relu(m.nx08(h))
+		h = F.relu(m.nx09(h))
+		h = F.relu(m.nx10(h))
+		h = F.relu(m.nx11(h))
+
+		# 広げていく
+		h = F.relu(m.nx12(h))
+		h = F.relu(m.nx13(h))
+		h = F.relu(m.nx14(h))
+		h = F.relu(m.nx15(h))
+		h = m.nx16(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def getModelKind(m):
+		return "clas"
+
+
 class ZigZagAllSqwzN6N10(chainer.Chain):
 	"""
 	開始値、高値、低値、終値全てを使い絞って混ぜて広げていくスタイル
@@ -492,6 +628,156 @@ class ZigZagAllSqwzN6N10(chainer.Chain):
 			x[1,i,:] = dataset[1,p:pe]
 			x[2,i,:] = dataset[2,p:pe]
 			x[3,i,:] = dataset[3,p:pe]
+		return x
+
+	def getModelKind(m):
+		return "zigzag"
+
+
+class ZigZagAllZSqwzN6N10(chainer.Chain):
+	"""
+	開始値、高値、低値、終値+ジグザグ全てを使い絞って混ぜて広げていくスタイル
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = 8 * unitCount // 10
+		uc2 = 6 * unitCount // 10
+		uc3 = 4 * unitCount // 10
+		uc4 = 2 * unitCount // 10
+		uc5 = 1 * unitCount // 10
+		super().__init__(
+			no01=L.Linear(inCount, uc1),
+			nh01=L.Linear(inCount, uc1),
+			nl01=L.Linear(inCount, uc1),
+			nc01=L.Linear(inCount, uc1),
+			nz01=L.Linear(inCount, uc1),
+
+			no02=L.Linear(uc1, uc2),
+			nh02=L.Linear(uc1, uc2),
+			nl02=L.Linear(uc1, uc2),
+			nc02=L.Linear(uc1, uc2),
+			nz02=L.Linear(uc1, uc2),
+
+			no03=L.Linear(uc2, uc3),
+			nh03=L.Linear(uc2, uc3),
+			nl03=L.Linear(uc2, uc3),
+			nc03=L.Linear(uc2, uc3),
+			nz03=L.Linear(uc2, uc3),
+
+			no04=L.Linear(uc3, uc4),
+			nh04=L.Linear(uc3, uc4),
+			nl04=L.Linear(uc3, uc4),
+			nc04=L.Linear(uc3, uc4),
+			nz04=L.Linear(uc3, uc4),
+
+			no05=L.Linear(uc4, uc5),
+			nh05=L.Linear(uc4, uc5),
+			nl05=L.Linear(uc4, uc5),
+			nc05=L.Linear(uc4, uc5),
+			nz05=L.Linear(uc4, uc5),
+
+			no06=L.Linear(uc5, uc5),
+			nh06=L.Linear(uc5, uc5),
+			nl06=L.Linear(uc5, uc5),
+			nc06=L.Linear(uc5, uc5),
+			nz06=L.Linear(uc5, uc5),
+
+			nx07=L.Linear(uc5, uc5),
+			nx08=L.Linear(uc5, uc5),
+			nx09=L.Linear(uc5, uc5),
+			nx10=L.Linear(uc5, uc5),
+			nx11=L.Linear(uc5, uc5),
+			nx12=L.Linear(uc5, uc4),
+			nx13=L.Linear(uc4, uc3),
+			nx14=L.Linear(uc3, uc2),
+			nx15=L.Linear(uc2, uc1),
+			nx16=L.Linear(uc1, outCount)
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 高値の最大値と低値の最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+		x[3] -= a
+
+		# 開始値、高値、低値、終値、ジグザグそれぞれを絞る
+		h = F.relu(m.no01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.relu(m.no02(h))
+		h = F.relu(m.no03(h))
+		h = F.relu(m.no04(h))
+		h = F.relu(m.no05(h))
+		ho = F.relu(m.no06(h))
+
+		h = F.relu(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.relu(m.nh02(h))
+		h = F.relu(m.nh03(h))
+		h = F.relu(m.nh04(h))
+		h = F.relu(m.nh05(h))
+		hh = F.relu(m.nh06(h))
+
+		h = F.relu(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.relu(m.nl02(h))
+		h = F.relu(m.nl03(h))
+		h = F.relu(m.nl04(h))
+		h = F.relu(m.nl05(h))
+		hl = F.relu(m.nl06(h))
+
+		h = F.relu(m.nc01(chainer.Variable(x[3], volatile=volatile)))
+		h = F.relu(m.nc02(h))
+		h = F.relu(m.nc03(h))
+		h = F.relu(m.nc04(h))
+		h = F.relu(m.nc05(h))
+		hc = F.relu(m.nc06(h))
+
+		h = F.relu(m.nz01(chainer.Variable(x[4], volatile=volatile)))
+		h = F.relu(m.nz02(h))
+		h = F.relu(m.nz03(h))
+		h = F.relu(m.nz04(h))
+		h = F.relu(m.nz05(h))
+		hz = F.relu(m.nz06(h))
+
+		# 混ぜる
+		h = ho + hh + hl + hc + hz
+
+		# いくつかレイヤーを通す
+		h = F.relu(m.nx07(h))
+		h = F.relu(m.nx08(h))
+		h = F.relu(m.nx09(h))
+		h = F.relu(m.nx10(h))
+		h = F.relu(m.nx11(h))
+
+		# 広げていく
+		h = F.relu(m.nx12(h))
+		h = F.relu(m.nx13(h))
+		h = F.relu(m.nx14(h))
+		h = F.relu(m.nx15(h))
+		h = m.nx16(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		batchSize = batchIndices.shape[0]
+		inCount = m.inCount
+		x = np.empty(shape=(5, batchSize, inCount), dtype=np.float32)
+		for i, p in enumerate(batchIndices):
+			pe = p + inCount
+			x[0,i,:] = dataset[0,p:pe]
+			x[1,i,:] = dataset[1,p:pe]
+			x[2,i,:] = dataset[2,p:pe]
+			x[3,i,:] = dataset[3,p:pe]
+			x[4,i,:] = dataset[4,p:pe]
 		return x
 
 	def getModelKind(m):
