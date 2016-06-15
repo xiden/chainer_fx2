@@ -20,8 +20,6 @@ import funcs as f
 clsNum = 0 # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 clsSpan = 0 # クラス分け方でのスパン(pips)
 dropoutRatio = 0.5 # ドロップアウト率
-offsetMode = None # 切り出した学習エリア値に対するオフセットモード
-datasetExtract = None # データセットの抽出方法
 fxRetMaSize = 0 # クライアントへ返す第二値の移動平均サイズ
 fxRetMaSig = 0 # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
 fxRetMaSizeK = None
@@ -36,6 +34,8 @@ glIn1 = None
 glIn2 = None
 glIn3 = None
 glIn4 = None
+glInTeach = None
+glInTeachCenter = None
 glOut = None
 glOutV = None
 glTeach = None
@@ -72,29 +72,34 @@ def readDataset(filename, inMA, noise):
 	"""
 	return fxreader.readDataset(filename, inMA, noise)
 
-def makeTeachDataset(trainDataset):
+@jit("i4[:](f4[:,:], i8, i8, i8, f8, i8, f4[:,:])", nopython=True)
+def makeConvolutedPredData(trainDataset, frameSize, minEvalLen, clsNum, clsSpan, predLen, predMeanK):
 	"""
-	指定された学習用データセットから教師データセットを作成する.
+	指定された学習用データセットから未来データの畳み込みをし、教師データセットを作成する.
+
 	Args:
 		trainDataset: 学習用データセット.
-	Returns: 教師データセット.
+		frameSize: １回の処理で使用するデータ数.
+		minEvalLen: 最小学習評価長.
+		clsNum: 片側分類分け数.
+		clsSpan: clsNum に対応する pips.
+		predLen: 予測長.
+		predMeanK: 畳み込み時の係数.
+
+	Returns:
+		教師データセット.
 	"""
-	n = trainDataset.shape[1] - s.minEvalLen + 1
+	n = trainDataset.shape[1] - minEvalLen + 1
 	dataset = np.empty(n, dtype=np.int32)
+	rate = 100.0 * clsNum / clsSpan
 
 	for i in range(n):
-		frameEnd = i + s.frameSize
+		frameEnd = i + frameSize
 
 		# 教師値取得
 		# 既知の終値と未来の分足データの開始値との差を教師とする
-		last = trainDataset[3, frameEnd - 1]
-		predData = trainDataset[0, frameEnd : frameEnd + s.predLen]
-		if s.predAve:
-			p = (predData * s.predMeanK).sum()
-		else:
-			p = predData[-1, 0]
-		d = p - last
-		t = int(round(100.0 * d * clsNum / clsSpan, 0))
+		d = (trainDataset[0, frameEnd : frameEnd + predLen] * predMeanK).sum() - trainDataset[3, frameEnd - 1]
+		t = int(round(d * rate, 0))
 		if t < -clsNum:
 			t = -clsNum
 		elif clsNum < t:
@@ -104,13 +109,63 @@ def makeTeachDataset(trainDataset):
 
 	return dataset
 
+@jit("i4[:](f4[:,:], i8, i8, i8, f8, i8)", nopython=True)
+def makePredData(trainDataset, frameSize, minEvalLen, clsNum, clsSpan, predLen):
+	"""
+	指定された学習用データセットから未来データの畳み込みをし、教師データセットを作成する.
+
+	Args:
+		trainDataset: 学習用データセット.
+		frameSize: １回の処理で使用するデータ数.
+		minEvalLen: 最小学習評価長.
+		clsNum: 片側分類分け数.
+		clsSpan: clsNum に対応する pips.
+		predLen: 予測長.
+
+	Returns:
+		教師データセット.
+	"""
+	n = trainDataset.shape[1] - minEvalLen + 1
+	dataset = np.empty(n, dtype=np.int32)
+	rate = 100.0 * clsNum / clsSpan
+
+	for i in range(n):
+		frameEnd = i + frameSize
+
+		# 教師値取得
+		# 既知の終値と未来の分足データの開始値との差を教師とする
+		d = trainDataset[0, frameEnd + predLen - 1] - trainDataset[3, frameEnd - 1]
+		t = int(round(d * rate, 0))
+		if t < -clsNum:
+			t = -clsNum
+		elif clsNum < t:
+			t = clsNum
+		t += clsNum
+		dataset[i] = t
+
+	return dataset
+
+def makeTeachDataset(trainDataset):
+	"""
+	指定された学習用データセットから教師データセットを作成する.
+
+	Args:
+		trainDataset: 学習用データセット.
+	Returns:
+		教師データセット.
+	"""
+	if s.predAve:
+		print("makeConvolutedPredData")
+		return makeConvolutedPredData(trainDataset, s.frameSize, s.minEvalLen, clsNum, clsSpan, s.predLen, s.predMeanK)
+	else:
+		print("makePredData")
+		return makePredData(trainDataset, s.frameSize, s.minEvalLen, clsNum, clsSpan, s.predLen)
+
 def init(iniFileName):
 	"""クラス分類用の初期化を行う"""
 	global clsNum
 	global clsSpan
 	global dropoutRatio
-	global offsetMode
-	global datasetExtract
 	global fxRetMaSize
 	global fxRetMaSig
 	global fxRetMaSizeK
@@ -119,8 +174,6 @@ def init(iniFileName):
 	clsNum = configIni.getInt("clsNum", "3") # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 	clsSpan = configIni.getFloat("clsSpan", "3") # クラス分け方でのスパン(pips)
 	dropoutRatio = configIni.getFloat("dropoutRatio", "0.5") # ドロップアウト率
-	offsetMode = configIni.getStr("offsetMode", "average") # 切り出した学習エリア値に対するオフセットモード
-	datasetExtract = configIni.getStr("datasetExtract", "all") # データセットの抽出方法
 	fxRetMaSize = configIni.getInt("fxRetMaSize", "5") # クライアントへ返す第二値の移動平均サイズ
 	fxRetMaSig = configIni.getInt("fxRetMaSig", "3") # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
 
@@ -203,7 +256,7 @@ def initGraph(windowCaption):
 		subPlot2.legend(loc='lower left') # 凡例表示
 
 def getTestFileName(testFileName):
-	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan) + datasetExtract
+	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan)
 
 #@jit
 def trainGetXBatchs(model, dataset, batchIndices, toGpu=True):
@@ -239,6 +292,43 @@ def trainBatch(trainDataset, teachDataset, itr):
 		#	print('learning rate =', s.dnn.optimizer.lr)
 
 	return loss
+
+
+def applyTeachLine(index, high, low):
+	"""
+	上の枠に教師データを表示する.
+
+	Args:
+		index: グラフ表示開始インデックス.
+		high: 高値の最高値
+		low: 低値の最低値
+	"""
+	global glInTeach
+	global glInTeachCenter
+
+	if index < s.frameSize:
+		start = s.frameSize - index
+		x = np.arange(start, start + s.minEvalLen, 1)
+		y = s.sharedTeachDataset[:x.shape[0]]
+	else:
+		start = index - s.frameSize
+		y = s.sharedTeachDataset[start : start + s.minEvalLen]
+		x = np.arange(0, y.shape[0], 1)
+
+	span = high - low
+	center = (high + low) / 2
+	rate = span / (clsNum * 2 + 1)
+	y = y * rate
+	y += -rate * clsNum + center
+
+	if glInTeach is None:
+		glInTeach, = subPlot1.plot(x, y)
+		glInTeachCenter = subPlot1.axhline(y=center, color='black')
+	else:
+		glInTeach.set_xdata(x)
+		glInTeach.set_ydata(y)
+		glInTeachCenter.set_ydata([center, center])
+
 
 #@jit
 def trainEvaluate(trainDataset, teachDataset, index):
@@ -277,7 +367,11 @@ def trainEvaluate(trainDataset, teachDataset, index):
 		glOut.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
-		subPlot1.set_ylim(f.npMaxMin(xvals))
+		high = float(xvals[1].max())
+		low = float(xvals[2].min())
+		applyTeachLine(index, high, low)
+
+		subPlot1.set_ylim([low, high])
 		subPlot2.set_ylim(f.npMaxMin([yvals]))
 		plt.draw()
 		plt.pause(0.001)

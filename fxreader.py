@@ -1,10 +1,20 @@
-import csv
-import codecs
 import math
 import random
 import os.path as path
 import numpy as np
+import pandas as pd
+from numba import jit
 import share as s
+
+@jit("void(f4[:,:])", nopython=True)
+def normalizeAfterNoise(a):
+	"""
+	開始、高値、低値、終値に乱数を加えた後の正規化処理.
+	"""
+	n = a.shape[0]
+	for i in range(n):
+		a[i, 1] = a[i].max()
+		a[i, 2] = a[i].min()
 
 def readDataset(filename, inMA, noise):
 	"""
@@ -23,77 +33,56 @@ def readDataset(filename, inMA, noise):
 
 	data = [[], [], [], []]
 
-	with open(filename, "r") as f:
-		if s.trainDataDummy == "line":
-			# 直線データ作成
-			for i in range(10000):
-				data[0].append(i + random.uniform(-noise, noise))
-				data[1].append(i + random.uniform(-noise, noise))
-				data[2].append(i + random.uniform(-noise, noise))
-				data[3].append(i + random.uniform(-noise, noise))
-		elif s.trainDataDummy == "sin":
-			# sin関数でダミーデータ作成
-			delta1 = math.pi / 30.0
-			for i in range(30000):
-				t = 110.0 + math.sin(i * delta1) * 0.1
-				data[0].append(t + random.uniform(-noise, noise))
-				data[1].append(t + random.uniform(-noise, noise))
-				data[2].append(t + random.uniform(-noise, noise))
-				data[3].append(t + random.uniform(-noise, noise))
-				data[1][i] = max([data[0][i], data[1][i], data[2][i], data[3][i]])
-				data[2][i] = min([data[0][i], data[1][i], data[2][i], data[3][i]])
-		elif s.trainDataDummy == "sweep":
-			# sin関数でダミーデータ作成
-			delta1 = math.pi / 1000.0
-			ddelta1 = delta1 / 1000.0
-			delta2 = math.pi / 570.0
-			ddelta2 = delta2 / 570.0
-			delta3 = math.pi / 15700.0
-			ddelta3 = delta2 / 15700.0
-			for i in range(30000):
-				t = 110.0 + math.sin(i * delta1) * math.cos(i * delta2) * 0.1 + math.sin(i * delta3) * 2
-				data[0].append(t + random.uniform(-noise, noise))
-				data[1].append(t + random.uniform(-noise, noise))
-				data[2].append(t + random.uniform(-noise, noise))
-				data[3].append(t + random.uniform(-noise, noise))
-				data[1][i] = max([data[0][i], data[1][i], data[2][i], data[3][i]])
-				data[2][i] = min([data[0][i], data[1][i], data[2][i], data[3][i]])
-				delta1 += ddelta1
-				delta2 += ddelta2
-				delta3 += ddelta3
-		else:
-			# 円データをそのまま使用する
-			dr = csv.reader(f)
-			for row in dr:
-				o = float(row[2])
-				h = float(row[3])
-				l = float(row[4])
-				c = float(row[5])
-				if noise:
-					o += random.uniform(-noise, noise)
-					h += random.uniform(-noise, noise)
-					l += random.uniform(-noise, noise)
-					c += random.uniform(-noise, noise)
-					if h < o: h = o
-					if h < c: h = c
-					if l > o: l = o
-					if l > c: l = c
-				data[0].append(o)
-				data[1].append(h)
-				data[2].append(l)
-				data[3].append(c)
-
-		## 円変化量を使用する
-		#dr = csv.reader(f)
-		#data = []
-		#lastVal = -10000.0
-		#for row in dr:
-		#	val = float(row[5])
-		#	if lastVal != -10000.0:
-		#		v = val - lastVal
-		#		data.append(v)
-		#		#print(v)
-		#	lastVal = val
+	if s.trainDataDummy == "line":
+		# 直線データ作成
+		for i in range(10000):
+			data[0].append(i + random.uniform(-noise, noise))
+			data[1].append(i + random.uniform(-noise, noise))
+			data[2].append(i + random.uniform(-noise, noise))
+			data[3].append(i + random.uniform(-noise, noise))
+	elif s.trainDataDummy == "sin":
+		# sin関数でダミーデータ作成
+		delta1 = math.pi / 30.0
+		for i in range(30000):
+			t = 110.0 + math.sin(i * delta1) * 0.1
+			data[0].append(t + random.uniform(-noise, noise))
+			data[1].append(t + random.uniform(-noise, noise))
+			data[2].append(t + random.uniform(-noise, noise))
+			data[3].append(t + random.uniform(-noise, noise))
+			data[1][i] = max([data[0][i], data[1][i], data[2][i], data[3][i]])
+			data[2][i] = min([data[0][i], data[1][i], data[2][i], data[3][i]])
+	elif s.trainDataDummy == "sweep":
+		# sin関数でダミーデータ作成
+		delta1 = math.pi / 1000.0
+		ddelta1 = delta1 / 1000.0
+		delta2 = math.pi / 570.0
+		ddelta2 = delta2 / 570.0
+		delta3 = math.pi / 15700.0
+		ddelta3 = delta2 / 15700.0
+		for i in range(30000):
+			t = 110.0 + math.sin(i * delta1) * math.cos(i * delta2) * 0.1 + math.sin(i * delta3) * 2
+			data[0].append(t + random.uniform(-noise, noise))
+			data[1].append(t + random.uniform(-noise, noise))
+			data[2].append(t + random.uniform(-noise, noise))
+			data[3].append(t + random.uniform(-noise, noise))
+			data[1][i] = max([data[0][i], data[1][i], data[2][i], data[3][i]])
+			data[2][i] = min([data[0][i], data[1][i], data[2][i], data[3][i]])
+			delta1 += ddelta1
+			delta2 += ddelta2
+			delta3 += ddelta3
+	else:
+		# CSVを一気に読み込む、めっちゃ速い
+		df = pd.read_csv(filename, header=None)
+		vals = df.values
+		# numpy配列へコピー
+		data = np.empty((vals.shape[0], 4), dtype=np.float32)
+		data[:,:] = vals[:, 2: 6]
+		# ノイズを加える
+		if noise:
+			data += np.random.uniform(-noise, noise, data.shape)
+			normalizeAfterNoise(data)
+		# 転置
+		data = data.transpose()
 
 	# numpy 配列にする
 	data = np.asarray(data, dtype=np.float32)

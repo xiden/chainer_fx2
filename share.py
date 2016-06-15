@@ -164,9 +164,7 @@ if len(args.wmov) != 0:
 
 # その他グローバル変数初期化
 inMA = (inMA // 2) * 2 + 1 # 入力値移動平均サイズを奇数にする
-predMeanK = np.ones(predLen) # 未来教師データの平均化係数
-#predictionMeanK = np.arange(1.0 / predLen, 1.0, 1.0 / (predLen + 1))
-#predictionMeanK *= predictionMeanK
+predMeanK = np.ones(predLen, dtype=np.float32) # 未来教師データの平均化係数
 predMeanK = predMeanK / predMeanK.sum()
 predMeanK = predMeanK.reshape((1, predLen))
 minPredLen = 0 # ドル円未来予測に必要な最小分足データ数、実際に必要なデータ数は4倍となる
@@ -227,7 +225,6 @@ mk.init(configFileName)
 # 試験設定をファイル名に付与する
 testFileName = str(netType) # ネットモデル名
 testFileName += "_" + optm  # オプティマイザ名
-testFileName += "_" + "btch" + str(batchSize) + ("rnd" if batchRandom else "") # バッチ数
 testFileName += "_u" + str(numUnits) # ユニット数
 testFileName += "f" + str(frameSize) # フレームサイズ
 testFileName += ("pa" if predAve else "p") + str(predLen) # 未来予測オフセット値
