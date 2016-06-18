@@ -55,7 +55,7 @@ def getTestHrStatFileBase():
 	"""
 	return "a_" + s.trainDataFile
 
-def getEpochs():
+def getEpochs(reverse=True):
 	"""
 	保存データが存在するエポックの番号リストを取得.
 	"""
@@ -67,7 +67,7 @@ def getEpochs():
 		name = pl.name
 		if path.isdir(path.join(s.resultTestDir, name)):
 			epochs.append(int(name[1:]))
-	epochs.sort()
+	epochs.sort(reverse=reverse)
 	return epochs
 
 def loadWeights(dir1, dir2=None, lname=None):
@@ -583,7 +583,7 @@ def wmov():
 	print('Create weight movie mode')
 
 	# エポック一覧取得
-	epochs = getEpochs()
+	epochs = getEpochs(False)
 
 	# 作業ディレクトリ作成
 	wdir = path.join(s.resultTestDir, 'movie_tmp')
@@ -615,6 +615,8 @@ def wmov():
 	# mp4作成
 	print("Creating movie...")
 	movfname = "all.mp4" if lname is None else lname + ".mp4"
+	if diff:
+		movfname = "diff_" + movfname
 	os.system("ffmpeg.exe -y -r 10 -i " + wdir + "\\%05d.png -c:v libx264 -crf 10 -preset ultrafast -pix_fmt yuv420p -threads 0 -tune zerolatency -f mpegts " + path.join(s.resultTestDir, movfname))
 
 	# 作業ディレクトリ削除

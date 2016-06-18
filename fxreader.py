@@ -93,7 +93,7 @@ def readDataset(filename, inMA, noise):
 		inMA = ma2 + 1
 		k = np.ones(inMA) / inMA
 		src = data
-		data = np.zeros((4, src.shape[1] - ma2), dtype=np.float)
+		data = np.zeros((4, src.shape[1] - ma2), dtype=np.float32)
 		data[0,:] = np.convolve(src[0], k, 'valid')
 		data[1,:] = np.convolve(src[1], k, 'valid')
 		data[2,:] = np.convolve(src[2], k, 'valid')

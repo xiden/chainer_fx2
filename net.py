@@ -385,6 +385,119 @@ class AllSqwzN6N5(chainer.Chain):
 		return "clas"
 
 
+class CloseHighLowN6N10Ver2(chainer.Chain):
+	"""
+	高値、低値、終値を使い絞って混ぜて広げていくスタイル
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = 8 * unitCount // 10
+		uc2 = 6 * unitCount // 10
+		uc3 = 4 * unitCount // 10
+		uc4 = 3 * unitCount // 10
+		uc5 = 2 * unitCount // 10
+		super().__init__(
+			nh01=L.Linear(inCount, uc1),
+			nl01=L.Linear(inCount, uc1),
+			nc01=L.Linear(inCount, uc1),
+
+			nh02=L.Linear(uc1, uc2),
+			nl02=L.Linear(uc1, uc2),
+			nc02=L.Linear(uc1, uc2),
+
+			nh03=L.Linear(uc2, uc3),
+			nl03=L.Linear(uc2, uc3),
+			nc03=L.Linear(uc2, uc3),
+
+			nh04=L.Linear(uc3, uc4),
+			nl04=L.Linear(uc3, uc4),
+			nc04=L.Linear(uc3, uc4),
+
+			nh05=L.Linear(uc4, uc5),
+			nl05=L.Linear(uc4, uc5),
+			nc05=L.Linear(uc4, uc5),
+
+			nh06=L.Linear(uc5, uc5),
+			nl06=L.Linear(uc5, uc5),
+			nc06=L.Linear(uc5, uc5),
+
+			nx07=L.Linear(uc5, uc5),
+			nx08=L.Linear(uc5, uc5),
+			nx09=L.Linear(uc5, uc5),
+			nx10=L.Linear(uc5, uc5),
+			nx11=L.Linear(uc5, uc5),
+			nx12=L.Linear(uc5, uc4),
+			nx13=L.Linear(uc4, uc3),
+			nx14=L.Linear(uc3, uc2),
+			nx15=L.Linear(uc2, uc1),
+			nx16=L.Linear(uc1, outCount)
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+
+		# 終値、高値、低値それぞれを絞る
+		h = F.relu(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.relu(m.nc02(h))
+		h = F.relu(m.nc03(h))
+		h = F.relu(m.nc04(h))
+		h = F.relu(m.nc05(h))
+		hc = F.relu(m.nc06(h))
+
+		h = F.relu(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.relu(m.nh02(h))
+		h = F.relu(m.nh03(h))
+		h = F.relu(m.nh04(h))
+		h = F.relu(m.nh05(h))
+		hh = F.relu(m.nh06(h))
+
+		h = F.relu(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.relu(m.nl02(h))
+		h = F.relu(m.nl03(h))
+		h = F.relu(m.nl04(h))
+		h = F.relu(m.nl05(h))
+		hl = F.relu(m.nl06(h))
+
+		# 混ぜる
+		h = hc + hh + hl
+
+		# いくつかレイヤを通す
+		h = F.relu(m.nx07(h))
+		h = F.relu(m.nx08(h))
+		h = F.relu(m.nx09(h))
+		h = F.relu(m.nx10(h))
+		h = F.relu(m.nx11(h))
+
+		# 広げていく
+		h = F.relu(m.nx12(h))
+		h = F.relu(m.nx13(h))
+		h = F.relu(m.nx14(h))
+		h = F.relu(m.nx15(h))
+		h = m.nx16(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def getModelKind(m):
+		return "clas"
+
+
 class CloseHighLowN6N10(chainer.Chain):
 	"""
 	高値、低値、終値を使い絞って混ぜて広げていくスタイル

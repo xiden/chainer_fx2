@@ -130,7 +130,7 @@ adaDeltaEps = configIni.getFloat("adaDeltaEps", "0.000001") # AdaDeltaアルゴ�
 serverTrainCount = configIni.getInt("serverTrainCount", "0") # サーバーとして動作中に最新データ側から過去に向かって学習させる回数、全ミニバッチを接触させた状態で学習させる
 backupEpoch = configIni.getInt("backupEpoch", "1") # 学習完了時エポックデータをバックアップするかどうか
 datasetNoise = configIni.getFloat("datasetNoise", "0.005") # 学習データセットに加えるノイズ値範囲
-wdiff = configIni.getStr("wdiff", "-1") # 重み差分表示オプションをカンマ区切りで指定、整数(負数なら最新から数える)ならエポックインデックス、":"から始まるならレイヤ名
+wdiff = configIni.getStr("wdiff", "0") # 重み差分表示オプションをカンマ区切りで指定、整数(負数なら最新から数える)ならエポックインデックス、":"から始まるならレイヤ名
 wmov = configIni.getStr("wmov", "") # 重み動画作成オプションをカンマ区切りで指定、keep: 作成した一時画像ファイルを残す、diff: 重み差分の動画を作成する、":"から始まるならレイヤ名
 
 # コマンドライン引数によるINI設定のオーバーライド

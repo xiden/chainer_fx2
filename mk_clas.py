@@ -461,7 +461,8 @@ def testhr():
 		yvals[i : i + n] = yval = y.argmax(1) - clsNum
 		tyval = tval * yval
 		diff = tval - yval
-		evals[i : i + n] = np.less(tyval, 0) * diff # 極性が逆の場合のみ誤差波形になるようにする
+		evals[i : i + n] = diff
+		#evals[i : i + n] = np.less(tyval, 0) * diff # 極性が逆の場合のみ誤差波形になるようにする
 
 		# 的中率更新
 		i += n
