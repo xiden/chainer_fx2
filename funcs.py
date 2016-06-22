@@ -432,7 +432,7 @@ def train():
 		if s.batchRandom:
 			s.batchStartIndices = np.random.randint(s.batchRangeStart, s.batchRangeEnd + 1, s.batchSize)
 		else:
-			s.batchStartIndices = np.asarray(s.batchIndices, dtype=np.integer)
+			s.batchStartIndices = np.array(s.batchIndices, dtype=np.integer)
 			s.batchStartIndices += s.batchOffset
 
 		# バッチ学習

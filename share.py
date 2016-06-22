@@ -25,6 +25,7 @@ import mk_lstm
 import mk_clas
 import mk_noai
 import mk_zigzag
+import mk_claslstm
 
 
 def loadModel(modelFile):
@@ -215,6 +216,8 @@ elif model.getModelKind() == "noai":
 	mk = mk_noai
 elif model.getModelKind() == "zigzag":
 	mk = mk_zigzag
+elif model.getModelKind() == "claslstm":
+	mk = mk_claslstm
 else:
 	print("Unknown model kind", model.getModelKind())
 	sys.exit()

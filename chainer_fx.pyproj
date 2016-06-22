@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>clas9.ini -t1000 -g1 -d0_300000_300000</CommandLineArguments>
+    <CommandLineArguments>clas13.ini -t1000 -g1 -d0_1440_1440</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -37,6 +37,7 @@
     <Compile Include="graph.py" />
     <Compile Include="graph_testhr.py" />
     <Compile Include="ini.py" />
+    <Compile Include="mk_claslstm.py" />
     <Compile Include="mk_zigzag.py" />
     <Compile Include="mk_clas.py">
       <SubType>Code</SubType>
@@ -64,6 +65,10 @@
   <ItemGroup>
     <Content Include="Configs\4月Sq.ini" />
     <Content Include="Configs\4月.ini" />
+    <Content Include="Configs\clas13.ini" />
+    <Content Include="Configs\clstm1.ini" />
+    <Content Include="Configs\clas11.ini" />
+    <Content Include="Configs\clas10.ini" />
     <Content Include="Configs\clas9.ini" />
     <Content Include="Configs\clas8.ini" />
     <Content Include="Configs\clas7.ini" />

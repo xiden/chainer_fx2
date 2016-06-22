@@ -3,7 +3,8 @@ import chainer.functions as F
 import chainer.links as L
 import numpy as np
 from numba import jit
-import mk_clas as c
+import mk_clas
+import mk_claslstm
 
 
 @jit("f4[:,:,:](i8, f4[:,:], i4[:])", nopython=True)
@@ -27,6 +28,27 @@ def buildMiniBatchCloseHighLow(inCount, trainDataset, batchIndices):
 		x[1,i,:] = trainDataset[1,p:pe]
 		x[2,i,:] = trainDataset[2,p:pe]
 	return x
+
+def buildRnnEvalDataCloseHighLow(inCount, trainDataset, startIndex, rnnLen, rnnStep):
+	"""
+	RNN評価用のデータセットを終値、高値、低値で作成する.
+
+	Args:
+		inCount: ニューラルネットの入力次元数.
+		trainDataset: 学習データセット.
+		startIndex: 学習データセット内RNN開始インデックス番号.
+		rnnLen: RNN長.
+		rnnStep: RNN一回の移動量.
+
+	Returns:
+		１バッチRNN全長分のデータ学習データ.
+	"""
+	n = inCount + (rnnLen - 1) * rnnStep
+	end = startIndex + n
+	return [
+		trainDataset[3, startIndex : end],
+		trainDataset[1, startIndex : end],
+		trainDataset[2, startIndex : end]]
 
 
 class OpenHighLowN6N5(chainer.Chain):
@@ -385,6 +407,66 @@ class AllSqwzN6N5(chainer.Chain):
 		return "clas"
 
 
+class CloseN2L2X1(chainer.Chain):
+	"""
+	終値を加工してLSTM後に仕上げ.
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		uc2 = 1000
+		super().__init__(
+			nc01=L.Linear(inCount, uc1),
+			nc02=L.Linear(uc1, uc2),
+
+			l01=L.LSTM(uc2, uc2),
+			l02=L.LSTM(uc2, uc2),
+
+			nx01=L.Linear(uc2, outCount)
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		m.l01.reset_state()
+		m.l02.reset_state()
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+
+		# 終値を加工
+		h = F.tanh(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.tanh(m.nc02(h))
+
+		# LSTMを通す
+		tr = m.train
+		do = mk_claslstm.dropoutRatio
+		h = F.dropout(m.l01(h), ratio=do, train=tr)
+		h = F.dropout(m.l02(h), ratio=do, train=tr)
+
+		# 仕上げ
+		h = F.tanh(m.nx01(h))
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def buildRnnEvalData(m, inCount, trainDataset, startIndex, rnnLen, rnnStep):
+		"""RNN評価用のデータセットを終値、高値、低値で作成する."""
+		return buildRnnEvalDataCloseHighLow(inCount, trainDataset, startIndex, rnnLen, rnnStep)
+
+	def getModelKind(m):
+		return "claslstm"
+
+
 class CloseHighLowN6N10Ver2(chainer.Chain):
 	"""
 	高値、低値、終値を使い絞って混ぜて広げていくスタイル
@@ -486,6 +568,119 @@ class CloseHighLowN6N10Ver2(chainer.Chain):
 		h = F.relu(m.nx13(h))
 		h = F.relu(m.nx14(h))
 		h = F.relu(m.nx15(h))
+		h = m.nx16(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def getModelKind(m):
+		return "clas"
+
+
+class CloseHighLowN6N10Ver3(chainer.Chain):
+	"""
+	高値、低値、終値を使い絞って混ぜて広げていくスタイルReLuの代わりにTanhを使ってみた
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = 8 * unitCount // 10
+		uc2 = 6 * unitCount // 10
+		uc3 = 4 * unitCount // 10
+		uc4 = 3 * unitCount // 10
+		uc5 = 2 * unitCount // 10
+		super().__init__(
+			nh01=L.Linear(inCount, uc1),
+			nl01=L.Linear(inCount, uc1),
+			nc01=L.Linear(inCount, uc1),
+
+			nh02=L.Linear(uc1, uc2),
+			nl02=L.Linear(uc1, uc2),
+			nc02=L.Linear(uc1, uc2),
+
+			nh03=L.Linear(uc2, uc3),
+			nl03=L.Linear(uc2, uc3),
+			nc03=L.Linear(uc2, uc3),
+
+			nh04=L.Linear(uc3, uc4),
+			nl04=L.Linear(uc3, uc4),
+			nc04=L.Linear(uc3, uc4),
+
+			nh05=L.Linear(uc4, uc5),
+			nl05=L.Linear(uc4, uc5),
+			nc05=L.Linear(uc4, uc5),
+
+			nh06=L.Linear(uc5, uc5),
+			nl06=L.Linear(uc5, uc5),
+			nc06=L.Linear(uc5, uc5),
+
+			nx07=L.Linear(uc5, uc5),
+			nx08=L.Linear(uc5, uc5),
+			nx09=L.Linear(uc5, uc5),
+			nx10=L.Linear(uc5, uc5),
+			nx11=L.Linear(uc5, uc5),
+			nx12=L.Linear(uc5, uc4),
+			nx13=L.Linear(uc4, uc3),
+			nx14=L.Linear(uc3, uc2),
+			nx15=L.Linear(uc2, uc1),
+			nx16=L.Linear(uc1, outCount)
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+
+		# 終値、高値、低値それぞれを絞る
+		h = F.tanh(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.tanh(m.nc02(h))
+		h = F.tanh(m.nc03(h))
+		h = F.tanh(m.nc04(h))
+		h = F.tanh(m.nc05(h))
+		hc = F.tanh(m.nc06(h))
+
+		h = F.tanh(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.tanh(m.nh02(h))
+		h = F.tanh(m.nh03(h))
+		h = F.tanh(m.nh04(h))
+		h = F.tanh(m.nh05(h))
+		hh = F.tanh(m.nh06(h))
+
+		h = F.tanh(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.tanh(m.nl02(h))
+		h = F.tanh(m.nl03(h))
+		h = F.tanh(m.nl04(h))
+		h = F.tanh(m.nl05(h))
+		hl = F.tanh(m.nl06(h))
+
+		# 混ぜる
+		h = hc + hh + hl
+
+		# いくつかレイヤを通す
+		h = F.tanh(m.nx07(h))
+		h = F.tanh(m.nx08(h))
+		h = F.tanh(m.nx09(h))
+		h = F.tanh(m.nx10(h))
+		h = F.tanh(m.nx11(h))
+
+		# 広げていく
+		h = F.tanh(m.nx12(h))
+		h = F.tanh(m.nx13(h))
+		h = F.tanh(m.nx14(h))
+		h = F.tanh(m.nx15(h))
 		h = m.nx16(h)
 
 		return h
@@ -1936,7 +2131,7 @@ class N7ReluDo(chainer.Chain):
 
 	#@jit
 	def __call__(m, x):
-		do = c.dropoutRatio
+		do = mk_clas.dropoutRatio
 		tr = m.train
 		h = F.dropout(F.relu(m.l1(x)), ratio=do, train=tr)
 		h = F.relu(m.l2(h))
@@ -2259,9 +2454,9 @@ class NDNDN(chainer.Chain):
 	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
-		h2 = self.l2(F.dropout(F.relu(h1), ratio=c.dropoutRatio, train=self.train))
+		h2 = self.l2(F.dropout(F.relu(h1), ratio=mk_clas.dropoutRatio, train=self.train))
 		h3 = self.l3(F.relu(h2))
-		h4 = self.l4(F.dropout(F.relu(h3), ratio=c.dropoutRatio, train=self.train))
+		h4 = self.l4(F.dropout(F.relu(h3), ratio=mk_clas.dropoutRatio, train=self.train))
 		y = self.l5(F.relu(h4))
 		return y
 
@@ -2290,11 +2485,11 @@ class NDDDDD(chainer.Chain):
 	#@jit
 	def __call__(self, x):
 		h1 = self.l1(x)
-		h2 = self.l2(F.dropout(F.relu(h1), ratio=c.dropoutRatio, train=self.train))
-		h3 = self.l3(F.dropout(F.relu(h2), ratio=c.dropoutRatio, train=self.train))
-		h4 = self.l4(F.dropout(F.relu(h3), ratio=c.dropoutRatio, train=self.train))
-		h5 = self.l5(F.dropout(F.relu(h4), ratio=c.dropoutRatio, train=self.train))
-		y = self.l6(F.dropout(F.relu(h5), ratio=c.dropoutRatio, train=self.train))
+		h2 = self.l2(F.dropout(F.relu(h1), ratio=mk_clas.dropoutRatio, train=self.train))
+		h3 = self.l3(F.dropout(F.relu(h2), ratio=mk_clas.dropoutRatio, train=self.train))
+		h4 = self.l4(F.dropout(F.relu(h3), ratio=mk_clas.dropoutRatio, train=self.train))
+		h5 = self.l5(F.dropout(F.relu(h4), ratio=mk_clas.dropoutRatio, train=self.train))
+		y = self.l6(F.dropout(F.relu(h5), ratio=mk_clas.dropoutRatio, train=self.train))
 		return y
 
 	def getModelKind(self):

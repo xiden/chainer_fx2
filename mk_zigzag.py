@@ -343,7 +343,7 @@ def trainGetXBatchs(model, dataset, batchIndices, toGpu=True):
 #@jit
 def trainGetTBatchs(dataset, batchIndices, toGpu=True):
 	"""
-	学習データと教師データをミニバッチで取得
+	教師データをミニバッチで取得
 	"""
 	t = np.take(dataset, batchIndices)
 	return s.toGpu(t) if toGpu else t

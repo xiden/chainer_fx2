@@ -19,6 +19,7 @@ import funcs as f
 
 clsNum = 0 # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 clsSpan = 0 # クラス分け方でのスパン(pips)
+rnnLen = 0 # LSTM用連続学習回数
 dropoutRatio = 0.5 # ドロップアウト率
 fxRetMaSize = 0 # クライアントへ返す第二値の移動平均サイズ
 fxRetMaSig = 0 # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
@@ -37,9 +38,7 @@ glIn4 = None
 glInTeach = None
 glInTeachCenter = None
 glOut = None
-glOutV = None
 glTeach = None
-glTeachV = None
 glErr = None
 
 class Dnn(object):
@@ -61,6 +60,7 @@ class Dnn(object):
 	def update(self, loss):
 		self.model.zerograds()
 		loss.backward()
+		loss.unchain_backward()  # truncate
 		self.optimizer.update()
 
 
@@ -163,14 +163,16 @@ def init(iniFileName):
 	"""クラス分類用の初期化を行う"""
 	global clsNum
 	global clsSpan
+	global rnnLen
 	global dropoutRatio
 	global fxRetMaSize
 	global fxRetMaSig
 	global fxRetMaSizeK
 
-	configIni = ini.file(iniFileName, "CLAS")
+	configIni = ini.file(iniFileName, "CLASLSTM")
 	clsNum = configIni.getInt("clsNum", "3") # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 	clsSpan = configIni.getFloat("clsSpan", "3") # クラス分け方でのスパン(pips)
+	rnnLen = configIni.getInt("rnnLen", "30") # LSTM用連続学習回数
 	dropoutRatio = configIni.getFloat("dropoutRatio", "0.5") # ドロップアウト率
 	fxRetMaSize = configIni.getInt("fxRetMaSize", "5") # クライアントへ返す第二値の移動平均サイズ
 	fxRetMaSig = configIni.getInt("fxRetMaSig", "3") # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
@@ -181,7 +183,7 @@ def init(iniFileName):
 	fxRetMaSizeK = np.diff(st.norm.cdf(np.linspace(-interval, interval, fxRetMaSize + 1)))
 	fxRetMaSizeK /= fxRetMaSizeK.sum()
 
-	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
+	s.minPredLen = s.frameSize + (rnnLen - 1) # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
 
 	# ニューラルネットの入力次元数
@@ -204,9 +206,7 @@ def initGraph(windowCaption):
 	global glIn3
 	global glIn4
 	global glOut
-	global glOutV
 	global glTeach
-	global glTeachV
 	global glErr
 
 	# グラフ描画用の初期化
@@ -221,24 +221,21 @@ def initGraph(windowCaption):
 		# 窓は２枠
 		subPlot1 = fig.add_subplot(2, 1, 1)
 		subPlot2 = fig.add_subplot(2, 1, 2)
-		subPlot2.set_xlim([-clsNum, clsNum])
+		subPlot2.set_xlim([0, rnnLen])
 		subPlot2.axhline(y=0, color='black')
 
-		gxOut = np.arange(-clsNum, clsNum + 1, 1)
-		gyOut = np.zeros(s.dnnOut)
+		gxOut = np.arange(0, rnnLen, 1)
+		gyOut = np.zeros(rnnLen)
 
 		if s.mode == "server":
 			subPlot1.set_xlim([0, s.minPredLen])
 			gxIn = np.arange(0, s.minPredLen, 1)
 			gyIn = np.zeros(s.minPredLen)
-			glOutV = subPlot2.axvline(x=0, color='red')
 		else:
 			subPlot1.set_xlim([0, s.minEvalLen])
 			subPlot1.axvline(x=s.frameSize, color='black')
 			gxIn = np.arange(0, s.minEvalLen, 1)
 			gyIn = np.zeros(s.minEvalLen)
-			glTeachV = subPlot2.axvline(x=0, color='red')
-			glOutV = subPlot2.axvline(x=0, color='orange')
 
 		glIn1, = subPlot1.plot(gxIn, gyIn, label="open")
 		glIn2, = subPlot1.plot(gxIn, gyIn, label="high")
@@ -254,43 +251,69 @@ def initGraph(windowCaption):
 		subPlot2.legend(loc='lower left') # 凡例表示
 
 def getTestFileName(testFileName):
-	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan)
+	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan) + "rnn" + str(rnnLen)
 
 #@jit
-def trainGetXBatchs(model, dataset, batchIndices, toGpu=True):
-	"""学習データと教師データをミニバッチで取得"""
-	x = model.buildMiniBatchData(dataset, batchIndices)
+def trainGetXBatchs(model, trainDataset, batchIndices, toGpu=True):
+	"""
+	学習データと教師データをミニバッチで取得.
+	"""
+	x = model.buildMiniBatchData(trainDataset, batchIndices)
 	return s.toGpu(x) if toGpu else x
 
 #@jit
-def trainGetTBatchs(dataset, batchIndices, toGpu=True):
-	"""教師データをミニバッチで取得"""
-	t = np.take(dataset, batchIndices)
+def trainGetTBatchs(teachDataset, batchIndices, toGpu=True):
+	"""
+	教師データをミニバッチで取得.
+	"""
+	t = np.take(teachDataset, batchIndices)
+	return s.toGpu(t) if toGpu else t
+
+def evalGetXRnn(model, trainDataset, index, toGpu=True):
+	"""
+	RNN評価用の学習データセットを取得.
+	"""
+	x = model.buildRnnEvalData(s.frameSize, trainDataset, index, rnnLen, 1)
+	n = len(x)
+	for i in range(n):
+		x[i] = s.toGpu(x[i]) if toGpu else x[i]
+	return x
+
+#@jit
+def evalGetTRnn(teachDataset, index, toGpu=True):
+	"""
+	RNN評価用の教師データセットを取得.
+	"""
+	t = teachDataset[index : index + rnnLen]
 	return s.toGpu(t) if toGpu else t
 
 #@jit
 def trainBatch(trainDataset, teachDataset, itr):
-	"""ミニバッチで学習する"""
+	"""
+	ミニバッチで学習する.
+	"""
 
-	# 学習実行
-	x = trainGetXBatchs(s.dnn.model, trainDataset, s.batchStartIndices)
-	t = trainGetTBatchs(teachDataset, s.batchStartIndices)
-	y, loss = s.dnn.evaluate(x, t)
+	# LSTMによる一連の学習
+	accumLoss = 0
+	for i in range(rnnLen):
+		# 学習実行
+		indices = s.batchStartIndices + i
+		x = trainGetXBatchs(s.dnn.model, trainDataset, indices)
+		t = trainGetTBatchs(teachDataset, indices)
+		y, loss = s.dnn.evaluate(x, t)
+		accumLoss += loss # 誤差逆伝播時に辿れる様にグラフ追加していく
 
-	# ユーザー入力による流れ制御
-	s.forceEval = False
-	f.trainFlowControl()
+		# ユーザー入力による流れ制御
+		s.forceEval = False
+		f.trainFlowControl()
 
-	# 評価処理
-	if (itr % s.evalInterval == 0) or s.forceEval:
-		print('evaluate')
-		perp = trainEvaluate(trainDataset, teachDataset, s.evalIndex)
-		print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
-		#if 1 <= itr and s.optm == "Adam":
-		#	print('learning rate =', s.dnn.optimizer.lr)
+		# 評価処理
+		if (i == 0 and itr % s.evalInterval == 0) or s.forceEval:
+			print('evaluate')
+			perp = trainEvaluate(trainDataset, teachDataset, s.evalIndex)
+			print('epoch {} validation perplexity: {}'.format(s.curEpoch, perp))
 
-	return loss
-
+	return accumLoss
 
 def applyTeachLine(index, high, low):
 	"""
@@ -330,7 +353,9 @@ def applyTeachLine(index, high, low):
 
 #@jit
 def trainEvaluate(trainDataset, teachDataset, index):
-	"""現在のニューラルネットワーク評価処理"""
+	"""
+	現在のニューラルネットワーク評価処理.
+	"""
 
 	# モデルに影響を与えないようにコピーする
 	model = s.dnn.model.copy()  # to use different state
@@ -338,44 +363,56 @@ def trainEvaluate(trainDataset, teachDataset, index):
 	model.train = False  # dropout does nothing
 	evdnn = Dnn(model, None)
 
-	# 学習データ取得
-	batchIndices = np.asarray([index])
-	x = trainGetXBatchs(model, trainDataset, batchIndices)
-	t = trainGetTBatchs(teachDataset, batchIndices)
+	# 評価データ取得
+	x = evalGetXRnn(model, trainDataset, index)
+	t = evalGetTRnn(teachDataset, index)
 
-	# ニューラルネットを通す
-	y, loss = evdnn.evaluate(x, t, chainer.flag.ON)
+	# 必要ならグラフ表示の準備
+	if s.grEnable:
+		yvals = np.empty(rnnLen, dtype=np.int32)
+
+	# RNNを評価
+	n = s.frameSize
+	accumLoss = 0
+	for i in range(rnnLen):
+		e = i + n
+		rows = len(x)
+		x2 = [None] * rows
+		for j in range(rows):
+			x2[j] = x[j][i : e].reshape(1, n)
+		y, loss = evdnn.evaluate(x2, t[i : i + 1], chainer.flag.ON)
+		accumLoss += float(loss.data)
+		if s.grEnable:
+			y = s.toCpu(y.data) # 最大値検索処理はCPUのが早い？
+			yvals[i] = y.argmax(1)
 
 	# 必要ならグラフ表示を行う
 	if s.grEnable:
 		# グラフにデータを描画する
 		plt.title(s.trainDataFile + " : " + str(index)) # グラフタイトル
 		xvals = trainDataset[:, index : index + s.minEvalLen]
-		tx = int(t[0])
-		ox = y.data.argmax(1)[0]
-		if s.xp is np:
-			yvals = y.data[0]
-		else:
-			yvals = cuda.to_cpu(y.data[0])
+		tvals = teachDataset[index : index + rnnLen] - clsNum
+		yvals -= clsNum
+
 		glIn1.set_ydata(xvals[0])
 		glIn2.set_ydata(xvals[1])
 		glIn3.set_ydata(xvals[2])
 		glIn4.set_ydata(xvals[3])
-		glTeachV.set_xdata([gxOut[tx], gxOut[tx]])
+		
+		glTeach.set_ydata(tvals)
 		glOut.set_ydata(yvals)
-		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
 		high = float(xvals[1].max())
 		low = float(xvals[2].min())
 		applyTeachLine(index, high, low)
 
 		subPlot1.set_ylim([low, high])
-		subPlot2.set_ylim(f.npMaxMin([yvals]))
+		subPlot2.set_ylim(f.npMaxMin([tvals, yvals]))
 		plt.draw()
 		plt.pause(0.001)
 
 	try:
-		return math.exp(float(loss.data))
+		return math.exp(accumLoss / rnnLen)
 	except Exception as e:
 		print("evaluate overflow")
 		return 0.0
