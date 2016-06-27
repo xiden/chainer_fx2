@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>clas13.ini -t1000 -g1 -d0_1440_1440</CommandLineArguments>
+    <CommandLineArguments>clstm2.ini -t1000 -g1 -d0_1440_1440</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -65,7 +65,18 @@
   <ItemGroup>
     <Content Include="Configs\4月Sq.ini" />
     <Content Include="Configs\4月.ini" />
+    <Content Include="Configs\clas23.ini" />
+    <Content Include="Configs\clas22.ini" />
+    <Content Include="Configs\clas21.ini" />
+    <Content Include="Configs\clas20.ini" />
+    <Content Include="Configs\clas19.ini" />
+    <Content Include="Configs\clas18.ini" />
+    <Content Include="Configs\clas17.ini" />
+    <Content Include="Configs\clas16.ini" />
+    <Content Include="Configs\clas15.ini" />
+    <Content Include="Configs\clas14.ini" />
     <Content Include="Configs\clas13.ini" />
+    <Content Include="Configs\clstm2.ini" />
     <Content Include="Configs\clstm1.ini" />
     <Content Include="Configs\clas11.ini" />
     <Content Include="Configs\clas10.ini" />
