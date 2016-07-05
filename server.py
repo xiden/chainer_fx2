@@ -132,7 +132,6 @@ class Server(threading.Thread):
 			self.acceptanceSock.shutdown(socket.SHUT_RDWR)
 			self.acceptanceSock.close()
 
-	#@jit
 	def procFunc(self, conn):
 		# 命令パケット受け取り
 		pkt = recvPacket(conn, self.buf)
@@ -150,7 +149,6 @@ class Server(threading.Thread):
 		# コマンド実行
 		return self.cmdHandlers[cmdType](conn, pkt, ipkt, size)
 
-	@jit
 	def run(self):
 		#s.trainFxYen()
 		pass

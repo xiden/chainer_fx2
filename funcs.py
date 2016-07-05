@@ -99,7 +99,7 @@ def loadTrainDataset():
 	"""
 	if s.sharedTrainDataset is None:
 		print("Loading data from  " + s.trainDataFile)
-		s.sharedTrainDataset = dataset = s.mk.readDataset(s.trainDataFile, s.inMA, s.datasetNoise)
+		s.sharedTrainDataset = dataset = s.mk.readDataset(s.trainDataFile)
 		print("    length = {}".format(dataset.shape[1]))
 	else:
 		dataset = s.sharedTrainDataset

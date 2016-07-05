@@ -80,13 +80,13 @@ class Dnn(object):
 		loss.unchain_backward()  # truncate
 		self.optimizer.update()
 
-def readDataset(filename, inMA, noise):
+def readDataset(filename):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 		Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
 	"""
-	return encodeArray(fxreader.readDataset(filename, inMA, noise))
+	return encodeArray(fxreader.readDataset(filename, s.inMA, s.inMASigma, s.datasetNoise))
 
 def init(iniFileName):
 	"""LSTM用の初期化を行う"""

@@ -64,84 +64,14 @@ class Dnn(object):
 		self.optimizer.update()
 
 
-def readDataset(filename, inMA, noise):
+def readDataset(filename):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 	Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
 	"""
-	return fxreader.readDataset(filename, inMA, noise)
+	return fxreader.readDataset(filename, s.inMA, s.inMASigma, s.datasetNoise)
 
-@jit("i4[:](f4[:,:], i8, i8, f8, i8, f4[:,:])", nopython=True)
-def makeConvolutedPredData(trainDataset, frameSize, clsNum, clsSpan, predLen, predMeanK):
-	"""
-	指定された学習用データセットから未来データの畳み込みをし、教師データセットを作成する.
-
-	Args:
-		trainDataset: 学習用データセット.
-		frameSize: １回の処理で使用するデータ数.
-		clsNum: 片側分類分け数.
-		clsSpan: clsNum に対応する pips.
-		predLen: 予測長.
-		predMeanK: 畳み込み時の係数.
-
-	Returns:
-		教師データセット.
-	"""
-	n = trainDataset.shape[1] - frameSize - predLen + 1
-	dataset = np.empty(n, dtype=np.int32)
-	rate = 100.0 * clsNum / clsSpan
-
-	for i in range(n):
-		frameEnd = i + frameSize
-
-		# 教師値取得
-		# 既知の終値と未来の分足データの開始値との差を教師とする
-		d = (trainDataset[0, frameEnd : frameEnd + predLen] * predMeanK).sum() - trainDataset[3, frameEnd - 1]
-		t = int(round(d * rate, 0))
-		if t < -clsNum:
-			t = -clsNum
-		elif clsNum < t:
-			t = clsNum
-		t += clsNum
-		dataset[i] = t
-
-	return dataset
-
-@jit("i4[:](f4[:,:], i8, i8, f8, i8)", nopython=True)
-def makePredData(trainDataset, frameSize, clsNum, clsSpan, predLen):
-	"""
-	指定された学習用データセットから未来データを取得し教師データセットを作成する.
-
-	Args:
-		trainDataset: 学習用データセット.
-		frameSize: １回の処理で使用するデータ数.
-		clsNum: 片側分類分け数.
-		clsSpan: clsNum に対応する pips.
-		predLen: 予測長.
-
-	Returns:
-		教師データセット.
-	"""
-	n = trainDataset.shape[1] - frameSize - predLen + 1
-	dataset = np.empty(n, dtype=np.int32)
-	rate = 100.0 * clsNum / clsSpan
-
-	for i in range(n):
-		frameEnd = i + frameSize
-
-		# 教師値取得
-		# 既知の終値と未来の分足データの開始値との差を教師とする
-		d = trainDataset[0, frameEnd + predLen - 1] - trainDataset[3, frameEnd - 1]
-		t = int(round(d * rate, 0))
-		if t < -clsNum:
-			t = -clsNum
-		elif clsNum < t:
-			t = clsNum
-		t += clsNum
-		dataset[i] = t
-
-	return dataset
 
 def makeTeachDataset(trainDataset):
 	"""
@@ -154,10 +84,10 @@ def makeTeachDataset(trainDataset):
 	"""
 	if s.predAve:
 		print("makeConvolutedPredData")
-		return makeConvolutedPredData(trainDataset, s.frameSize, clsNum, clsSpan, s.predLen, s.predMeanK)
+		return jf.makeConvolutedPredData(trainDataset, s.frameSize, clsNum, clsSpan, s.predLen, s.predMeanK)
 	else:
 		print("makePredData")
-		return makePredData(trainDataset, s.frameSize, clsNum, clsSpan, s.predLen)
+		return jf.makePredData(trainDataset, s.frameSize, clsNum, clsSpan, s.predLen)
 
 def init(iniFileName):
 	"""クラス分類用の初期化を行う"""

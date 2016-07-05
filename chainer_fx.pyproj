@@ -15,7 +15,7 @@
     <InterpreterId>{9a7a9026-48c1-4688-9d5d-e5699d47d074}</InterpreterId>
     <InterpreterVersion>3.5</InterpreterVersion>
     <LaunchProvider>Standard Python launcher</LaunchProvider>
-    <CommandLineArguments>clstm2.ini -t1000 -g1 -d0_1440_1440</CommandLineArguments>
+    <CommandLineArguments>clas30.ini -mserver -g1</CommandLineArguments>
     <EnableNativeCodeDebugging>False</EnableNativeCodeDebugging>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
@@ -37,6 +37,7 @@
     <Compile Include="graph.py" />
     <Compile Include="graph_testhr.py" />
     <Compile Include="ini.py" />
+    <Compile Include="jitfuncs.py" />
     <Compile Include="mk_claslstm.py" />
     <Compile Include="mk_zigzag.py" />
     <Compile Include="mk_clas.py">
@@ -65,6 +66,14 @@
   <ItemGroup>
     <Content Include="Configs\4月Sq.ini" />
     <Content Include="Configs\4月.ini" />
+    <Content Include="Configs\clas31.ini" />
+    <Content Include="Configs\clas30.ini" />
+    <Content Include="Configs\clas29.ini" />
+    <Content Include="Configs\clas28.ini" />
+    <Content Include="Configs\clas27.ini" />
+    <Content Include="Configs\clas26.ini" />
+    <Content Include="Configs\clas25.ini" />
+    <Content Include="Configs\clas24.ini" />
     <Content Include="Configs\clas23.ini" />
     <Content Include="Configs\clas22.ini" />
     <Content Include="Configs\clas21.ini" />

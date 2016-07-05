@@ -5,24 +5,17 @@ import numpy as np
 import pandas as pd
 from numba import jit
 import share as s
+import jitfuncs as jf
 
-@jit("void(f4[:,:])", nopython=True)
-def normalizeAfterNoise(a):
-	"""
-	開始、高値、低値、終値に乱数を加えた後の正規化処理.
-	"""
-	n = a.shape[0]
-	for i in range(n):
-		a[i, 1] = a[i].max()
-		a[i, 2] = a[i].min()
 
-def readDataset(filename, inMA, noise):
+def readDataset(filename, inMA, inMASigma, noise):
 	"""
 	指定された分足為替CSVからロウソク足データを作成する
 
 	Args:
 		filename: 読み込むCSVファイル名.
 		inMA: 移動平均サイズ.
+		inMASigma: 移動平均をガウシアンカーネルで行う場合には０以外のσ値を指定する.
 		noise: 加えるノイズ量.
 
 	Returns:
@@ -80,7 +73,7 @@ def readDataset(filename, inMA, noise):
 		# ノイズを加える
 		if noise:
 			data += np.random.uniform(-noise, noise, data.shape)
-			normalizeAfterNoise(data)
+			jf.normalizeAfterNoise(data)
 		# 転置
 		data = data.transpose()
 
@@ -91,9 +84,12 @@ def readDataset(filename, inMA, noise):
 	if 3 <= inMA:
 		ma2 = (inMA // 2) * 2
 		inMA = ma2 + 1
-		k = np.ones(inMA) / inMA
+		if inMASigma != 0:
+			k = jf.gaussianKernel(inMA, inMASigma)
+		else:
+			k = np.ones(inMA) / inMA
 		src = data
-		data = np.zeros((4, src.shape[1] - ma2), dtype=np.float32)
+		data = np.empty((4, src.shape[1] - ma2), dtype=np.float32)
 		data[0,:] = np.convolve(src[0], k, 'valid')
 		data[1,:] = np.convolve(src[1], k, 'valid')
 		data[2,:] = np.convolve(src[2], k, 'valid')

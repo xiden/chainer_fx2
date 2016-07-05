@@ -10,6 +10,7 @@ import ini
 import fxreader
 import share as s
 import funcs as f
+import jitfuncs as jf
 
 # グローバル変数
 maLevel = 1 # 移動平均レベル、0が3、1で5、2で7・・・
@@ -51,16 +52,6 @@ class Dnn(object):
 
 	def update(self, loss):
 		pass
-
-def gaussianKernel(maSize, sigma):
-	"""
-	移動平均用ガウシアンカーネルの計算
-	"""
-	maSize = (maSize // 2) * 2 + 1
-	interval = sigma + (sigma + 0.5) / maSize
-	k = np.diff(st.norm.cdf(np.linspace(-interval, interval, maSize + 1)))
-	k /= k.sum()
-	return k
 
 def addLine(data, label=None, color=None):
 	"""
@@ -108,13 +99,13 @@ def addMaLines(isLow, madata, label, color):
 	addLine(madata, label=label, color=(white + color) / 2)
 	addIntersectPoints(dataset[1 if isLow else 2], madata, isLow, color)
 
-def readDataset(filename, inMA, noise):
+def readDataset(filename):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 		Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
 	"""
-	return fxreader.readDataset(filename, inMA, noise)
+	return fxreader.readDataset(filename, s.inMA, s.inMASigma, s.datasetNoise)
 
 def init(iniFileName):
 	"""AI以外での予測用の初期化を行う"""
@@ -133,8 +124,8 @@ def init(iniFileName):
 
 	maSize1 = 3 + maLevel * 2
 	maSize2 = 3 + (maLevel + 2) * 2
-	kernel1 = gaussianKernel(maSize1, 3)
-	kernel2 = gaussianKernel(maSize2, 3)
+	kernel1 = jf.gaussianKernel(maSize1, 3)
+	kernel2 = jf.gaussianKernel(maSize2, 3)
 
 	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen # 学習結果の評価に必要な最小データ数

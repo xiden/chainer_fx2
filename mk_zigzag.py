@@ -191,14 +191,12 @@ def addZigzagLine():
 	if glZigzag is None:
 		glZigzag, = subPlot1.plot(gxZigzag, gyZigzag, label="zigzag", marker="o", markersize=8)
 
-def readDataset(filename, inMA, noise):
+def readDataset(filename):
 	"""
 	指定された分足為替CSVからロウソク足データを作成する
 
 	Args:
 		filename: 読み込むCSVファイル名.
-		inMA: 移動平均サイズ.
-		noise: 加えるノイズ量.
 
 	Returns:
 		開始値配列、高値配列、低値配列、終値配列の2次元データ.
@@ -207,7 +205,7 @@ def readDataset(filename, inMA, noise):
 	global gxZigzag
 	global gyZigzag
 
-	trainDataset = fxreader.readDataset(filename, inMA, noise)
+	trainDataset = fxreader.readDataset(filename, s.inMA, s.inMASigma, s.datasetNoise)
 
 	# ジグザグ取得
 	if zigzagCache is None:

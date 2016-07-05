@@ -5,29 +5,8 @@ import numpy as np
 from numba import jit
 import mk_clas
 import mk_claslstm
+import jitfuncs as jf
 
-
-@jit("f4[:,:,:](i8, f4[:,:], i4[:])", nopython=True)
-def buildMiniBatchCloseHighLow(inCount, trainDataset, batchIndices):
-	"""
-	学習データセットの終値、高値、低値を使い指定位置から全ミニバッチデータを作成する.
-
-	Args:
-		inCount: ニューラルネットの入力次元数.
-		trainDataset: 学習データセット.
-		batchIndices: 各バッチの学習データセット開始インデックス番号.
-
-	Returns:
-		全バッチ分の学習データセット.
-	"""
-	batchSize = batchIndices.shape[0]
-	x = np.empty(shape=(3, batchSize, inCount), dtype=np.float32)
-	for i, p in enumerate(batchIndices):
-		pe = p + inCount
-		x[0,i,:] = trainDataset[3,p:pe]
-		x[1,i,:] = trainDataset[1,p:pe]
-		x[2,i,:] = trainDataset[2,p:pe]
-	return x
 
 def buildRnnEvalDataCloseHighLow(inCount, trainDataset, startIndex, rnnLen, rnnStep):
 	"""
@@ -457,7 +436,7 @@ class CloseN2L2X1(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def buildRnnEvalData(m, inCount, trainDataset, startIndex, rnnLen, rnnStep):
 		"""RNN評価用のデータセットを終値、高値、低値で作成する."""
@@ -574,7 +553,7 @@ class CloseHighLowN6N10Ver2(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -687,7 +666,7 @@ class CloseHighLowN6N10Ver3(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -800,7 +779,7 @@ class CloseHighLowN6N10Ver4(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -913,7 +892,7 @@ class CloseHighLowN6N10Ver5(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1026,7 +1005,7 @@ class CloseHighLowN6N10Ver6(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1139,7 +1118,7 @@ class CloseHighLowN6N10Ver7(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1252,7 +1231,7 @@ class CloseHighLowN6N10Ver8(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1380,7 +1359,7 @@ class CloseHighLowN10Nx10(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1488,7 +1467,7 @@ class CloseHighLowN5Nx15(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1586,7 +1565,93 @@ class CloseHighLowN5Nx10(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def getModelKind(m):
+		return "clas"
+
+
+class CloseHighLowN5Nx4(chainer.Chain):
+	"""
+	高値、低値、終値を使い入力と出力以外は絞りっぱなしで層数が多いスタイルReLuの代わりにTanhを使ってみた
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		super().__init__(
+			nc01=L.Linear(inCount, uc1),
+			nc02=L.Linear(uc1, uc1),
+			nc03=L.Linear(uc1, uc1),
+			nc04=L.Linear(uc1, uc1),
+			nc05=L.Linear(uc1, uc1),
+
+			nh01=L.Linear(inCount, uc1),
+			nh02=L.Linear(uc1, uc1),
+			nh03=L.Linear(uc1, uc1),
+			nh04=L.Linear(uc1, uc1),
+			nh05=L.Linear(uc1, uc1),
+
+			nl01=L.Linear(inCount, uc1),
+			nl02=L.Linear(uc1, uc1),
+			nl03=L.Linear(uc1, uc1),
+			nl04=L.Linear(uc1, uc1),
+			nl05=L.Linear(uc1, uc1),
+
+			nx01=L.Linear(uc1, uc1),
+			nx02=L.Linear(uc1, uc1),
+			nx03=L.Linear(uc1, uc1),
+			nx04=L.Linear(uc1, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+
+		# 終値、高値、低値それぞれを絞る
+		h = F.tanh(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.tanh(m.nc02(h))
+		h = F.tanh(m.nc03(h))
+		h = F.tanh(m.nc04(h))
+		hc = F.tanh(m.nc05(h))
+
+		h = F.tanh(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.tanh(m.nh02(h))
+		h = F.tanh(m.nh03(h))
+		h = F.tanh(m.nh04(h))
+		hh = F.tanh(m.nh05(h))
+
+		h = F.tanh(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.tanh(m.nl02(h))
+		h = F.tanh(m.nl03(h))
+		h = F.tanh(m.nl04(h))
+		hl = F.tanh(m.nl05(h))
+
+		# 混ぜる
+		h = hc + hh + hl
+
+		# いくつかレイヤを通す
+		h = F.tanh(m.nx01(h))
+		h = F.tanh(m.nx02(h))
+		h = F.tanh(m.nx03(h))
+		h = m.nx04(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1674,7 +1739,7 @@ class CloseHighLowN5Nx5(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1762,7 +1827,371 @@ class CloseHighLowN5Nx5Ver2(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def getModelKind(m):
+		return "clas"
+
+
+class CloseHighLowN5Nx5Ver3(chainer.Chain):
+	"""
+	高値、低値、終値を使い入力と出力以外は絞りっぱなしで層数が多いスタイルReLuの代わりにTanhを使ってみた
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		super().__init__(
+			nc01=L.Linear(inCount, uc1),
+			nc02=L.Linear(uc1, uc1),
+			nc03=L.Linear(uc1, uc1),
+			nc04=L.Linear(uc1, uc1),
+			nc05=L.Linear(uc1, uc1),
+
+			nh01=L.Linear(inCount, uc1),
+			nh02=L.Linear(uc1, uc1),
+			nh03=L.Linear(uc1, uc1),
+			nh04=L.Linear(uc1, uc1),
+			nh05=L.Linear(uc1, uc1),
+
+			nl01=L.Linear(inCount, uc1),
+			nl02=L.Linear(uc1, uc1),
+			nl03=L.Linear(uc1, uc1),
+			nl04=L.Linear(uc1, uc1),
+			nl05=L.Linear(uc1, uc1),
+
+			nx01=L.Linear(uc1, uc1),
+			nx02=L.Linear(uc1, uc1),
+			nx03=L.Linear(uc1, uc1),
+			nx04=L.Linear(uc1, uc1),
+			nx05=L.Linear(uc1, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+
+		# 終値、高値、低値それぞれを絞る
+		h = F.tanh(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.tanh(m.nc02(h))
+		h = F.tanh(m.nc03(h))
+		h = F.tanh(m.nc04(h))
+		hc = F.tanh(m.nc05(h))
+
+		h = F.tanh(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.tanh(m.nh02(h))
+		h = F.tanh(m.nh03(h))
+		h = F.tanh(m.nh04(h))
+		hh = F.tanh(m.nh05(h))
+
+		h = F.tanh(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.tanh(m.nl02(h))
+		h = F.tanh(m.nl03(h))
+		h = F.tanh(m.nl04(h))
+		hl = F.tanh(m.nl05(h))
+
+		# 混ぜる
+		h = hc + hh + hl
+
+		# いくつかレイヤを通す
+		h = F.tanh(m.nx01(h))
+		h = F.tanh(m.nx02(h))
+		h = F.tanh(m.nx03(h))
+		h = F.tanh(m.nx04(h))
+		h = m.nx05(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def getModelKind(m):
+		return "clas"
+
+
+class CloseHighLowN5Nx6(chainer.Chain):
+	"""
+	高値、低値、終値を使い入力と出力以外は絞りっぱなしで層数が多いスタイルReLuの代わりにTanhを使ってみた
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		super().__init__(
+			nc01=L.Linear(inCount, uc1),
+			nc02=L.Linear(uc1, uc1),
+			nc03=L.Linear(uc1, uc1),
+			nc04=L.Linear(uc1, uc1),
+			nc05=L.Linear(uc1, uc1),
+
+			nh01=L.Linear(inCount, uc1),
+			nh02=L.Linear(uc1, uc1),
+			nh03=L.Linear(uc1, uc1),
+			nh04=L.Linear(uc1, uc1),
+			nh05=L.Linear(uc1, uc1),
+
+			nl01=L.Linear(inCount, uc1),
+			nl02=L.Linear(uc1, uc1),
+			nl03=L.Linear(uc1, uc1),
+			nl04=L.Linear(uc1, uc1),
+			nl05=L.Linear(uc1, uc1),
+
+			nx01=L.Linear(uc1, uc1),
+			nx02=L.Linear(uc1, uc1),
+			nx03=L.Linear(uc1, uc1),
+			nx04=L.Linear(uc1, uc1),
+			nx05=L.Linear(uc1, uc1),
+			nx06=L.Linear(uc1, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+
+		# 終値、高値、低値それぞれを絞る
+		h = F.tanh(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.tanh(m.nc02(h))
+		h = F.tanh(m.nc03(h))
+		h = F.tanh(m.nc04(h))
+		hc = F.tanh(m.nc05(h))
+
+		h = F.tanh(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.tanh(m.nh02(h))
+		h = F.tanh(m.nh03(h))
+		h = F.tanh(m.nh04(h))
+		hh = F.tanh(m.nh05(h))
+
+		h = F.tanh(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.tanh(m.nl02(h))
+		h = F.tanh(m.nl03(h))
+		h = F.tanh(m.nl04(h))
+		hl = F.tanh(m.nl05(h))
+
+		# 混ぜる
+		h = hc + hh + hl
+
+		# いくつかレイヤを通す
+		h = F.tanh(m.nx01(h))
+		h = F.tanh(m.nx02(h))
+		h = F.tanh(m.nx03(h))
+		h = F.tanh(m.nx04(h))
+		h = F.tanh(m.nx05(h))
+		h = m.nx06(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def getModelKind(m):
+		return "clas"
+
+
+class CloseHighLowN5Nx7(chainer.Chain):
+	"""
+	高値、低値、終値を使い入力と出力以外は絞りっぱなしで層数が多いスタイルReLuの代わりにTanhを使ってみた
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		super().__init__(
+			nc01=L.Linear(inCount, uc1),
+			nc02=L.Linear(uc1, uc1),
+			nc03=L.Linear(uc1, uc1),
+			nc04=L.Linear(uc1, uc1),
+			nc05=L.Linear(uc1, uc1),
+
+			nh01=L.Linear(inCount, uc1),
+			nh02=L.Linear(uc1, uc1),
+			nh03=L.Linear(uc1, uc1),
+			nh04=L.Linear(uc1, uc1),
+			nh05=L.Linear(uc1, uc1),
+
+			nl01=L.Linear(inCount, uc1),
+			nl02=L.Linear(uc1, uc1),
+			nl03=L.Linear(uc1, uc1),
+			nl04=L.Linear(uc1, uc1),
+			nl05=L.Linear(uc1, uc1),
+
+			nx01=L.Linear(uc1, uc1),
+			nx02=L.Linear(uc1, uc1),
+			nx03=L.Linear(uc1, uc1),
+			nx04=L.Linear(uc1, uc1),
+			nx05=L.Linear(uc1, uc1),
+			nx06=L.Linear(uc1, uc1),
+			nx07=L.Linear(uc1, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+
+		# 終値、高値、低値それぞれを絞る
+		h = F.tanh(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.tanh(m.nc02(h))
+		h = F.tanh(m.nc03(h))
+		h = F.tanh(m.nc04(h))
+		hc = F.tanh(m.nc05(h))
+
+		h = F.tanh(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.tanh(m.nh02(h))
+		h = F.tanh(m.nh03(h))
+		h = F.tanh(m.nh04(h))
+		hh = F.tanh(m.nh05(h))
+
+		h = F.tanh(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.tanh(m.nl02(h))
+		h = F.tanh(m.nl03(h))
+		h = F.tanh(m.nl04(h))
+		hl = F.tanh(m.nl05(h))
+
+		# 混ぜる
+		h = hc + hh + hl
+
+		# いくつかレイヤを通す
+		h = F.tanh(m.nx01(h))
+		h = F.tanh(m.nx02(h))
+		h = F.tanh(m.nx03(h))
+		h = F.tanh(m.nx04(h))
+		h = F.tanh(m.nx05(h))
+		h = F.tanh(m.nx06(h))
+		h = m.nx07(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+
+	def getModelKind(m):
+		return "clas"
+
+
+class CloseHighLowN5Nx8(chainer.Chain):
+	"""
+	高値、低値、終値を使い入力と出力以外は絞りっぱなしで層数が多いスタイルReLuの代わりにTanhを使ってみた
+	"""
+	def __init__(m):
+		pass
+
+	def create(m, inCount, unitCount, outCount, gpu, train=True):
+		uc1 = unitCount
+		super().__init__(
+			nc01=L.Linear(inCount, uc1),
+			nc02=L.Linear(uc1, uc1),
+			nc03=L.Linear(uc1, uc1),
+			nc04=L.Linear(uc1, uc1),
+			nc05=L.Linear(uc1, uc1),
+
+			nh01=L.Linear(inCount, uc1),
+			nh02=L.Linear(uc1, uc1),
+			nh03=L.Linear(uc1, uc1),
+			nh04=L.Linear(uc1, uc1),
+			nh05=L.Linear(uc1, uc1),
+
+			nl01=L.Linear(inCount, uc1),
+			nl02=L.Linear(uc1, uc1),
+			nl03=L.Linear(uc1, uc1),
+			nl04=L.Linear(uc1, uc1),
+			nl05=L.Linear(uc1, uc1),
+
+			nx01=L.Linear(uc1, uc1),
+			nx02=L.Linear(uc1, uc1),
+			nx03=L.Linear(uc1, uc1),
+			nx04=L.Linear(uc1, uc1),
+			nx05=L.Linear(uc1, uc1),
+			nx06=L.Linear(uc1, uc1),
+			nx07=L.Linear(uc1, uc1),
+			nx08=L.Linear(uc1, outCount),
+		)
+		m.inCount = inCount
+		m.train = train
+
+	#@jit(nopython=True)
+	def reset_state(m):
+		pass
+
+	#@jit(nopython=True)
+	def __call__(m, x, volatile):
+		# 各バッチの高値最大値と低値最小値の中間が０になるようシフトする
+		a = (x[1].max(1, keepdims=True) + x[2].min(1, keepdims=True)) * 0.5
+		x[0] -= a
+		x[1] -= a
+		x[2] -= a
+
+		# 終値、高値、低値それぞれを絞る
+		h = F.tanh(m.nc01(chainer.Variable(x[0], volatile=volatile)))
+		h = F.tanh(m.nc02(h))
+		h = F.tanh(m.nc03(h))
+		h = F.tanh(m.nc04(h))
+		hc = F.tanh(m.nc05(h))
+
+		h = F.tanh(m.nh01(chainer.Variable(x[1], volatile=volatile)))
+		h = F.tanh(m.nh02(h))
+		h = F.tanh(m.nh03(h))
+		h = F.tanh(m.nh04(h))
+		hh = F.tanh(m.nh05(h))
+
+		h = F.tanh(m.nl01(chainer.Variable(x[2], volatile=volatile)))
+		h = F.tanh(m.nl02(h))
+		h = F.tanh(m.nl03(h))
+		h = F.tanh(m.nl04(h))
+		hl = F.tanh(m.nl05(h))
+
+		# 混ぜる
+		h = hc + hh + hl
+
+		# いくつかレイヤを通す
+		h = F.tanh(m.nx01(h))
+		h = F.tanh(m.nx02(h))
+		h = F.tanh(m.nx03(h))
+		h = F.tanh(m.nx04(h))
+		h = F.tanh(m.nx05(h))
+		h = F.tanh(m.nx06(h))
+		h = F.tanh(m.nx07(h))
+		h = m.nx08(h)
+
+		return h
+
+	def buildMiniBatchData(m, dataset, batchIndices):
+		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -1860,7 +2289,7 @@ class CloseHighLowN5Nx4L1Nx1(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def buildRnnEvalData(m, inCount, trainDataset, startIndex, rnnLen, rnnStep):
 		"""RNN評価用のデータセットを終値、高値、低値で作成する."""
@@ -2012,7 +2441,7 @@ class CloseHighLowN10Nx20Short(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"
@@ -2125,7 +2554,7 @@ class CloseHighLowN6N10(chainer.Chain):
 
 	def buildMiniBatchData(m, dataset, batchIndices):
 		"""学習データセットの指定位置から全ミニバッチデータを作成する"""
-		return buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
+		return jf.buildMiniBatchCloseHighLow(m.inCount, dataset, batchIndices)
 
 	def getModelKind(m):
 		return "clas"

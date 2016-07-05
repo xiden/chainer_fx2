@@ -16,6 +16,7 @@ import ini
 import fxreader
 import share as s
 import funcs as f
+import jitfuncs as jf
 
 clsNum = 0 # クラス分け方でのクラス数、＋片側の数、－側も同じ数だけあるので実際にクラス数は clsNum * 2 + 1 となる
 clsSpan = 0 # クラス分け方でのスパン(pips)
@@ -23,6 +24,7 @@ dropoutRatio = 0.5 # ドロップアウト率
 fxRetMaSize = 0 # クライアントへ返す第二値の移動平均サイズ
 fxRetMaSig = 0 # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
 fxRetMaSizeK = None
+fxBatchIndices = None
 
 subPlot1 = None
 subPlot2 = None
@@ -36,7 +38,8 @@ glIn3 = None
 glIn4 = None
 glInTeach = None
 glInTeachCenter = None
-glOut = None
+glT = None
+glY = None
 glOutV = None
 glTeach = None
 glTeachV = None
@@ -64,84 +67,14 @@ class Dnn(object):
 		self.optimizer.update()
 
 
-def readDataset(filename, inMA, noise):
+def readDataset(filename):
 	"""指定された分足為替CSVからロウソク足データを作成する
 	Args:
 		filename: 読み込むCSVファイル名.
 	Returns: 開始値配列、高値配列、低値配列、終値配列の2次元データ
 	"""
-	return fxreader.readDataset(filename, inMA, noise)
+	return fxreader.readDataset(filename, s.inMA, s.inMASigma, s.datasetNoise)
 
-@jit("i4[:](f4[:,:], i8, i8, f8, i8, f4[:,:])", nopython=True)
-def makeConvolutedPredData(trainDataset, frameSize, clsNum, clsSpan, predLen, predMeanK):
-	"""
-	指定された学習用データセットから未来データの畳み込みをし、教師データセットを作成する.
-
-	Args:
-		trainDataset: 学習用データセット.
-		frameSize: １回の処理で使用するデータ数.
-		clsNum: 片側分類分け数.
-		clsSpan: clsNum に対応する pips.
-		predLen: 予測長.
-		predMeanK: 畳み込み時の係数.
-
-	Returns:
-		教師データセット.
-	"""
-	n = trainDataset.shape[1] - frameSize - predLen + 1
-	dataset = np.empty(n, dtype=np.int32)
-	rate = 100.0 * clsNum / clsSpan
-
-	for i in range(n):
-		frameEnd = i + frameSize
-
-		# 教師値取得
-		# 既知の終値と未来の分足データの開始値との差を教師とする
-		d = (trainDataset[0, frameEnd : frameEnd + predLen] * predMeanK).sum() - trainDataset[3, frameEnd - 1]
-		t = int(round(d * rate, 0))
-		if t < -clsNum:
-			t = -clsNum
-		elif clsNum < t:
-			t = clsNum
-		t += clsNum
-		dataset[i] = t
-
-	return dataset
-
-@jit("i4[:](f4[:,:], i8, i8, f8, i8)", nopython=True)
-def makePredData(trainDataset, frameSize, clsNum, clsSpan, predLen):
-	"""
-	指定された学習用データセットから未来データを取得し教師データセットを作成する.
-
-	Args:
-		trainDataset: 学習用データセット.
-		frameSize: １回の処理で使用するデータ数.
-		clsNum: 片側分類分け数.
-		clsSpan: clsNum に対応する pips.
-		predLen: 予測長.
-
-	Returns:
-		教師データセット.
-	"""
-	n = trainDataset.shape[1] - frameSize - predLen + 1
-	dataset = np.empty(n, dtype=np.int32)
-	rate = 100.0 * clsNum / clsSpan
-
-	for i in range(n):
-		frameEnd = i + frameSize
-
-		# 教師値取得
-		# 既知の終値と未来の分足データの開始値との差を教師とする
-		d = trainDataset[0, frameEnd + predLen - 1] - trainDataset[3, frameEnd - 1]
-		t = int(round(d * rate, 0))
-		if t < -clsNum:
-			t = -clsNum
-		elif clsNum < t:
-			t = clsNum
-		t += clsNum
-		dataset[i] = t
-
-	return dataset
 
 def makeTeachDataset(trainDataset):
 	"""
@@ -154,10 +87,10 @@ def makeTeachDataset(trainDataset):
 	"""
 	if s.predAve:
 		print("makeConvolutedPredData")
-		return makeConvolutedPredData(trainDataset, s.frameSize, clsNum, clsSpan, s.predLen, s.predMeanK)
+		return jf.makeConvolutedPredData(trainDataset, s.frameSize, clsNum, clsSpan, s.predLen, s.predMeanK)
 	else:
 		print("makePredData")
-		return makePredData(trainDataset, s.frameSize, clsNum, clsSpan, s.predLen)
+		return jf.makePredData(trainDataset, s.frameSize, clsNum, clsSpan, s.predLen)
 
 def init(iniFileName):
 	"""クラス分類用の初期化を行う"""
@@ -176,10 +109,17 @@ def init(iniFileName):
 	fxRetMaSig = configIni.getInt("fxRetMaSig", "3") # クライアントへ返す第二値の移動平均（ガウシアン）の標準偏差
 
 	# 移動平均（ガウシアン）のカーネル計算
+	if fxRetMaSize == 0:
+		fxRetMaSize = s.inMA
 	fxRetMaSize = (fxRetMaSize // 2) * 2 + 1
-	interval = fxRetMaSig + (fxRetMaSig + 0.5) / fxRetMaSize
-	fxRetMaSizeK = np.diff(st.norm.cdf(np.linspace(-interval, interval, fxRetMaSize + 1)))
-	fxRetMaSizeK /= fxRetMaSizeK.sum()
+
+	if fxRetMaSig == 0:
+		interval = fxRetMaSig + (fxRetMaSig + 0.5) / fxRetMaSize
+		fxRetMaSizeK = np.diff(st.norm.cdf(np.linspace(-interval, interval, fxRetMaSize + 1)))
+		fxRetMaSizeK /= fxRetMaSizeK.sum()
+	else:
+		fxRetMaSizeK = np.ones(fxRetMaSize) / fxRetMaSize
+
 
 	s.minPredLen = s.frameSize # ドル円未来予測に必要な最小データ数
 	s.minEvalLen = s.minPredLen + s.predLen # 学習結果の評価に必要な最小データ数
@@ -189,8 +129,8 @@ def init(iniFileName):
 	# ニューラルネットの出力次元数
 	s.dnnOut = clsNum * 2 + 1
 
-	s.fxRetLen = 3 # クライアントに返す結果データ長
-	s.fxInitialYenDataLen = s.frameSize # 初期化時にMT4から送る必要がある円データ数
+	s.fxRetLen = 10 # クライアントに返す結果データ長
+	s.fxInitialYenDataLen = s.frameSize * 3 # 初期化時にMT4から送る必要がある円データ数
 
 def initGraph(windowCaption):
 	global subPlot1
@@ -203,55 +143,64 @@ def initGraph(windowCaption):
 	global glIn2
 	global glIn3
 	global glIn4
-	global glOut
+	global glT
+	global glY
 	global glOutV
 	global glTeach
 	global glTeachV
 	global glErr
 
-	# グラフ描画用の初期化
-	if s.grEnable:
-		plt.ion() # 対話モードON
-		fig = plt.figure() # 何も描画されていない新しいウィンドウを描画
-		plt.xlabel("min") # x軸ラベル
-		plt.ylabel("yen") # y軸ラベル
-		plt.grid() # グリッド表示
-		plt.gcf().canvas.set_window_title(windowCaption)
+	if not s.grEnable:
+		return
 
-		# 窓は２枠
-		subPlot1 = fig.add_subplot(2, 1, 1)
-		subPlot2 = fig.add_subplot(2, 1, 2)
+	# グラフ描画用の初期化
+	plt.ion() # 対話モードON
+	fig = plt.figure() # 何も描画されていない新しいウィンドウを描画
+	plt.xlabel("min") # x軸ラベル
+	plt.ylabel("yen") # y軸ラベル
+	plt.grid() # グリッド表示
+	fig.canvas.set_window_title(windowCaption)
+
+	# 窓は２枠
+	subPlot1 = fig.add_subplot(2, 1, 1)
+	subPlot2 = fig.add_subplot(2, 1, 2)
+
+	if s.mode == "server":
+		subPlot1.set_xlim([0, s.dnnIn])
+		gxIn = np.arange(0, s.dnnIn, 1)
+		gyIn = np.zeros(s.dnnIn)
+
+		subPlot2.set_xlim([0, s.dnnIn])
+		subPlot2.axhline(y=0, color='black')
+		gxOut = np.arange(0, s.dnnIn + 1, 1)
+		gyOut = np.zeros(s.dnnIn + 1)
+		glT, = subPlot2.plot(gxOut[:-s.predLen], gyOut[:-s.predLen], label="y")
+		glY, = subPlot2.plot(gxOut, gyOut, label="y")
+	else:
+		subPlot1.set_xlim([0, s.minEvalLen])
+		subPlot1.axvline(x=s.frameSize, color='black')
+		gxIn = np.arange(0, s.minEvalLen, 1)
+		gyIn = np.zeros(s.minEvalLen)
+
 		subPlot2.set_xlim([-clsNum, clsNum])
 		subPlot2.axhline(y=0, color='black')
-
 		gxOut = np.arange(-clsNum, clsNum + 1, 1)
 		gyOut = np.zeros(s.dnnOut)
-
-		if s.mode == "server":
-			subPlot1.set_xlim([0, s.minPredLen])
-			gxIn = np.arange(0, s.minPredLen, 1)
-			gyIn = np.zeros(s.minPredLen)
-			glOutV = subPlot2.axvline(x=0, color='red')
-		else:
-			subPlot1.set_xlim([0, s.minEvalLen])
-			subPlot1.axvline(x=s.frameSize, color='black')
-			gxIn = np.arange(0, s.minEvalLen, 1)
-			gyIn = np.zeros(s.minEvalLen)
-			glTeachV = subPlot2.axvline(x=0, color='red')
-			glOutV = subPlot2.axvline(x=0, color='orange')
-
-		glIn1, = subPlot1.plot(gxIn, gyIn, label="open")
-		glIn2, = subPlot1.plot(gxIn, gyIn, label="high")
-		glIn3, = subPlot1.plot(gxIn, gyIn, label="low")
-		glIn4, = subPlot1.plot(gxIn, gyIn, label="close")
-		glOut, = subPlot2.plot(gxOut, gyOut, label="y")
+		glTeachV = subPlot2.axvline(x=0, color='red')
+		glOutV = subPlot2.axvline(x=0, color='orange')
+		glY, = subPlot2.plot(gxOut, gyOut, label="y")
 		
-		if s.mode == "testhr" or s.mode == "trainhr":
-			glErr, = subPlot2.plot(gxOut, gyOut, label="err", color='red')
-			glTeach, = subPlot2.plot(gxOut, gyOut, label="t", color='green')
+	if s.mode == "testhr" or s.mode == "trainhr":
+		glTeach, = subPlot2.plot(gxOut, gyOut, label="t", color='green')
+		glErr, = subPlot2.plot(gxOut, gyOut, label="err", color='red')
 
-		subPlot1.legend(loc='lower left') # 凡例表示
-		subPlot2.legend(loc='lower left') # 凡例表示
+	glIn1, = subPlot1.plot(gxIn, gyIn, label="open")
+	glIn2, = subPlot1.plot(gxIn, gyIn, label="high")
+	glIn3, = subPlot1.plot(gxIn, gyIn, label="low")
+	glIn4, = subPlot1.plot(gxIn, gyIn, label="close")
+
+	subPlot1.legend(loc='lower left') # 凡例表示
+	subPlot2.legend(loc='lower left') # 凡例表示
 
 def getTestFileName(testFileName):
 	return testFileName + "c" + str(clsNum) + "s" + str(clsSpan)
@@ -362,7 +311,7 @@ def trainEvaluate(trainDataset, teachDataset, index):
 		glIn3.set_ydata(xvals[2])
 		glIn4.set_ydata(xvals[3])
 		glTeachV.set_xdata([gxOut[tx], gxOut[tx]])
-		glOut.set_ydata(yvals)
+		glY.set_ydata(yvals)
 		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
 
 		high = float(xvals[1].max())
@@ -418,8 +367,8 @@ def testhr():
 		gxOut = np.arange(0, testLen, 1)
 		glTeach.set_xdata(gxOut)
 		glTeach.set_ydata(tvals)
-		glOut.set_xdata(gxOut)
-		glOut.set_ydata(yvals)
+		glY.set_xdata(gxOut)
+		glY.set_ydata(yvals)
 		glErr.set_xdata(gxOut)
 		glErr.set_ydata(evals)
 		glIn1.set_xdata(gxIn)
@@ -500,7 +449,7 @@ def testhr():
 
 			if s.grEnable:
 				glTeach.set_ydata(tvals)
-				glOut.set_ydata(yvals)
+				glY.set_ydata(yvals)
 				glErr.set_ydata(evals)
 				subPlot2.set_ylim(f.npMaxMin([tvals[:i], yvals[:i]]))
 				plt.draw()
@@ -522,7 +471,11 @@ def testhr():
 
 #@jit
 def fxPrediction():
-	"""現在の円データから予測する"""
+	"""
+	現在の円データから予測する.
+	"""
+
+	global fxBatchIndices
 
 	## 必要があるなら学習を行う
 	#if s.serverTrainCount != 0:
@@ -545,26 +498,43 @@ def fxPrediction():
 	# モデル取得
 	model = s.dnn.model
 	model.train = False
-	# 予測元データ取得してニューラルネットを通す
-	dataset = s.fxYenData[-s.dnnIn:,0]
-	x = trainGetXBatchs(model, dataset, np.asarray([0]))
+
+	# 予測元データ取得、最後尾から必要分だけ取得
+	ma2 = fxRetMaSize - 1
+	src = s.fxYenData[-(s.dnnIn * 2 + ma2):].transpose()
+
+	# フィルタを通す
+	dataset = np.empty((4, src.shape[1] - ma2), dtype=np.float32)
+	dataset[0,:] = np.convolve(src[0], fxRetMaSizeK, 'valid')
+	dataset[1,:] = np.convolve(src[1], fxRetMaSizeK, 'valid')
+	dataset[2,:] = np.convolve(src[2], fxRetMaSizeK, 'valid')
+	dataset[3,:] = np.convolve(src[3], fxRetMaSizeK, 'valid')
+
+	# ニューラルネットを通す
+	if fxBatchIndices is None:
+		fxBatchIndices = np.arange(0, s.dnnIn + 1, 1, dtype=np.int32)
+	x = trainGetXBatchs(model, dataset, fxBatchIndices)
+	t = jf.makePredData(dataset, s.frameSize, clsNum, clsSpan, s.predLen) - clsNum
 	y = model(x, chainer.flag.ON)
 	y = s.toCpu(y.data) # 最大値検索処理はCPUのが早い？
-	ox = y.argmax(1)[0]
+	y = y.argmax(1) - clsNum
 
 	# 必要ならグラフ表示を行う
 	if s.grEnable:
 		# グラフにデータを描画する
-		xvals = s.fxYenData[:, -s.frameSize:]
-		glIn1.set_ydata(xvals[0])
-		glIn2.set_ydata(xvals[1])
-		glIn3.set_ydata(xvals[2])
-		glIn4.set_ydata(xvals[3])
-		glOut.set_ydata(yvals)
-		glOutV.set_xdata([gxOut[ox], gxOut[ox]])
+		o = dataset[0, -s.dnnIn:]
+		h = dataset[1, -s.dnnIn:]
+		l = dataset[2, -s.dnnIn:]
+		c = dataset[3, -s.dnnIn:]
+		glIn1.set_ydata(o)
+		glIn2.set_ydata(h)
+		glIn3.set_ydata(l)
+		glIn4.set_ydata(c)
+		glT.set_ydata(t)
+		glY.set_ydata(y)
 
-		subPlot1.set_ylim(f.npMaxMin([xvals]))
-		subPlot2.set_ylim(f.npMaxMin([yvals]))
+		subPlot1.set_ylim([l.min(), h.max()])
+		subPlot2.set_ylim(f.npMaxMin([y]))
 		plt.draw()
 		plt.pause(0.001)
 
@@ -572,9 +542,13 @@ def fxPrediction():
 	# AI予測値
 	# 移動平均の差分値
 	# 移動平均の差分値の差分値
-	deltaPips = float(clsSpan * (ox - clsNum) / clsNum)
-	dataForMa = s.fxYenData[3, -fxRetMaSize - 3:]
-	ma = np.asarray(np.convolve(np.asarray(dataForMa), fxRetMaSizeK, 'valid'), dtype=np.float32)
-	diff1 = np.diff(ma)
+	ox = y[-1]
+	deltaPips = float(clsSpan * ox / clsNum)
+	last = dataset[3, -3:]
+	diff1 = np.diff(last)
 	diff2 = np.diff(diff1)
-	return np.asarray([deltaPips, diff1[-1] * 100.0, diff2[-1] * 100.0], dtype=np.float32)
+	ret = np.zeros(s.fxRetLen, dtype=np.float32)
+	ret[0] = deltaPips
+	ret[1] = diff1[-1] * 100.0
+	ret[2] = diff2[-1] * 100.0
+	return ret

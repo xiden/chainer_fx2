@@ -115,6 +115,7 @@ netInitParamRandom = configIni.getFloat("netInitParamRandom", "0.0") # ニュー
 epoch = configIni.getInt("epoch", "1000") # 実行エポック数
 numUnits = configIni.getInt("numUnits", "60") # ユニット数
 inMA = configIni.getInt("inMA", "5") # 入力値の移動平均サイズ
+inMASigma = configIni.getInt("inMASigma", "0") # 入力値移動平均をガウシアンカーネルで行う場合にはσ値を０以外にセットする
 frameSize = configIni.getInt("frameSize", "300") # 入力分足数
 batchSize = configIni.getInt("batchSize", "20") # バッチ数
 batchRandom = configIni.getInt("batchRandom", "0") # バッチ位置をランダムにするかどうか
